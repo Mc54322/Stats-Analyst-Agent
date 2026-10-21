@@ -1,0 +1,8 @@
+Type: project
+Description: R dependencies for the Stats Analyst Agent. renv reads this file
+    (snapshot.type "explicit") to decide what goes in renv.lock.
+Imports:
+    tidyverse,
+    arrow,
+    janitor,
+    readxl
