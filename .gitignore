@@ -1,3 +1,15 @@
+# Data: raw downloads and clean outputs stay local.
+# `data/*` (not `data/`) so the ingest scripts can be re-included below;
+# git cannot re-include files inside a directory that is itself ignored.
+data/*
+!data/ingest/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+# renv writes its own renv/.gitignore for the package library
+
 # Python
 __pycache__/
 *.py[cod]
@@ -26,8 +38,7 @@ env/
 .coverage
 htmlcov/
 
-# Data & outputs
-data/raw/
+# Outputs
 outputs/
 *.log
 
