@@ -1,0 +1,498 @@
+# Data catalogue for data/clean/*.parquet
+#
+# Gotchas are taken only from data/notes.md, which holds the full wording.
+# "CHECK" marks a meaning or unit that has not been confirmed.
+# Example values come from the data as downloaded 21 Oct 2026.
+
+tables:
+
+  - name: rtt_incomplete_provider
+    file: data/clean/rtt_incomplete_provider.parquet
+    source: https://www.england.nhs.uk/statistics/statistical-work-areas/rtt-waiting-times/
+    built_by: data/ingest/rtt_incomplete_provider.R
+    grain: month x provider x treatment function
+    rows: 98143
+    date_range: {from: 2024-09-01, to: 2026-08-01}
+    unique_key: [period, provider_org_code, treatment_function_code]
+    join_key:
+      to_ae_provider: {this: provider_org_code, other: org_code}
+    gotchas:
+      - Covers Sep 2024 to Aug 2026, so its latest month (Aug 2026) differs from A&E's (Sep 2026).
+      - period is a snapshot of the waiting list at month end, stored as the 1st of the month.
+      - C_999 ("Total") rows sit next to the specialty rows. Filter is_all_specialties_total
+        to TRUE for totals or FALSE for specialties. Never sum both (that doubles the count).
+      - Counts are pathways, not patients. Say "pathways", not "people".
+      - Includes NONC (non-English commissioners), which NHS England excludes from all published
+        figures. Totals are about 31k higher than published (Aug 2026, 7,189,213 vs 7,158,164).
+      - National totals are "reported", not NHS England's headline "with estimates"
+        (published Aug 2026 with estimates is 7,370,100). Non-submitting trusts are simply missing.
+        Sheffield (RHQ) is missing from Jul 2025 onwards and Barking, Havering & Redbridge (RF4)
+        in Nov 2025. The Mar 2026 drop (-110,702) is NOT a missing submission; it is a real fall.
+      - Mergers break provider time series. RVJ merged into RA7 from Jul 2026; RAP merged into
+        RAL from Jan 2025.
+      - Provider count grows over time (457 to 532 a month), mostly independent sector. NHS
+        trusts fell from 155 to 145. Non-trusts are 73% of providers but 6.6% of the waiting list.
+        Limit rankings to NHS trusts unless asked otherwise.
+      - Percentages are ratios of sums. Never mean() the pct_* column.
+      - Group by code, not name (18 provider codes change name).
+      - Joining to A&E loses providers (only 136 of 191 A&E codes appear in RTT). Use left_join
+        and report what didn't match.
+
+    columns:
+      - name: period
+        type: date
+        meaning: Reporting month. The waiting list is a snapshot at month end, stored as the
+          1st of the month.
+        units: month
+        examples: [2024-09-01, 2025-11-01, 2026-08-01]
+        gotchas:
+          - Snapshot at month end, unlike A&E's activity during the month.
+          - Range is Sep 2024 to Aug 2026, which differs from A&E.
+
+      - name: provider_parent_org_code
+        type: string
+        meaning: ODS code of the provider's Integrated Care Board (ICB). CHECK whether this is the
+          ICB the provider is located in.
+        units: code
+        examples: [QR1, QRL, QE1]
+        gotchas:
+          - This is the ICB, not the region.
+          - ICBs merged in Apr 2026 (42 up to Mar 2026, 36 from Apr 2026, 48 codes in all),
+            so ICB trends break at Apr 2026.
+
+      - name: provider_parent_name
+        type: string
+        meaning: Name of the provider's ICB.
+        units: text
+        examples:
+          - NHS GLOUCESTERSHIRE INTEGRATED CARE BOARD
+          - NHS HAMPSHIRE AND ISLE OF WIGHT INTEGRATED CARE BOARD
+          - NHS CENTRAL EAST INTEGRATED CARE BOARD
+        gotchas:
+          - This is the ICB, not the region. ICBs merged in Apr 2026.
+
+      - name: provider_org_code
+        type: string
+        meaning: ODS code of the provider (NHS trust or independent-sector site).
+        units: code
+        examples: [RTH, H3W7Q, NT448]
+        gotchas:
+          - Group by code, not name.
+          - An NHS trust has a 3-character code starting with R or T
+            (grepl("^[RT][A-Z0-9]{2}$", code)). Longer codes, including ones starting with
+            R or T, are independent-sector or other sites.
+          - Mergers break time series (RVJ into RA7 from Jul 2026; RAP into RAL from Jan 2025).
+          - Joins to A&E org_code. Only 136 of 191 A&E codes match; use left_join.
+
+      - name: provider_org_name
+        type: string
+        meaning: Provider name as published that month.
+        units: text
+        examples:
+          - OXFORD UNIVERSITY HOSPITALS NHS FOUNDATION TRUST
+          - SPAMEDICA GLOUCESTER
+          - BUCKSHAW HOSPITAL
+        gotchas:
+          - Names change over time (18 codes). Group by code and show the latest name for each code.
+
+      - name: treatment_function_code
+        type: string
+        meaning: Specialty code. Includes 18 named specialties (C_100 ... C_502), five "Other"
+          groups (X02-X06) and C_999 (the all-specialty total).
+        units: code
+        examples: [C_110, X02, C_999]
+        gotchas:
+          - C_999 is the total. Never sum it together with the specialty rows.
+          - X02-X06 are real specialty groups, not subtotals, and hold 22% of pathways. A specialty
+            with no row of its own (e.g. paediatric cardiology) is inside one of them.
+
+      - name: treatment_function_name
+        type: string
+        meaning: Specialty name for treatment_function_code.
+        units: text
+        examples: [Trauma and Orthopaedic Service, Other - Medical Services, Total]
+        gotchas:
+          - The name "Total" is C_999. Rows named "Other - ..." are real specialty groups, not subtotals.
+
+      - name: is_all_specialties_total
+        type: boolean
+        meaning: TRUE on the C_999 all-specialty total row for each provider-month.
+        units: flag
+        examples: [true, false, false]
+        gotchas:
+          - TRUE for provider or national totals, FALSE for specialties. Never sum both.
+
+      - name: total_incomplete
+        type: double
+        meaning: Incomplete RTT pathways (patients still waiting) at month end, including
+          unknown clock starts.
+        units: pathways
+        examples: [25, 933, 6384]
+        gotchas:
+          - Pathways, not patients.
+          - Includes NONC pathways, which published figures exclude (about 31k nationally).
+          - Reported figures only. Non-submitting trusts are missing (no estimates).
+          - Summing both C_999 and specialty rows doubles the count.
+
+      - name: unknown_clock_start
+        type: double
+        meaning: Incomplete pathways whose clock start date is unknown.
+        units: pathways
+        examples: [0, 0, 0]
+        gotchas:
+          - Always 0. Ignore it.
+
+      - name: known_clock_start
+        type: double
+        meaning: Incomplete pathways with a known clock start (the sum of all weekly wait bands).
+          This is the denominator of pct_within_18_weeks.
+        units: pathways
+        examples: [25, 933, 6384]
+        gotchas:
+          - Pathways, not patients. Includes NONC.
+
+      - name: within_18_weeks
+        type: double
+        meaning: Pathways waiting up to 18 weeks.
+        units: pathways
+        examples: [23, 688, 3824]
+        gotchas:
+          - Includes NONC.
+
+      - name: over_18_weeks
+        type: double
+        meaning: Pathways waiting more than 18 weeks (known_clock_start - within_18_weeks).
+        units: pathways
+        examples: [5, 287, 2825]
+        gotchas:
+          - Cumulative, so it includes every over_52/65/78/104 pathway. Don't add the over_* columns together.
+
+      - name: over_52_weeks
+        type: double
+        meaning: Pathways waiting more than 52 weeks.
+        units: pathways
+        examples: [1, 22, 303]
+        gotchas:
+          - Cumulative, so it includes over_65_weeks. For a band, subtract
+            (52-65 weeks = over_52_weeks - over_65_weeks).
+
+      - name: over_65_weeks
+        type: double
+        meaning: Pathways waiting more than 65 weeks.
+        units: pathways
+        examples: [1, 4, 46]
+        gotchas:
+          - Cumulative, so it includes over_78_weeks.
+
+      - name: over_78_weeks
+        type: double
+        meaning: Pathways waiting more than 78 weeks.
+        units: pathways
+        examples: [1, 2, 16]
+        gotchas:
+          - Cumulative, so it includes over_104_weeks.
+
+      - name: over_104_weeks
+        type: double
+        meaning: Pathways waiting more than 104 weeks.
+        units: pathways
+        examples: [1, 1, 8]
+        gotchas:
+          - Most affected by NONC (Aug 2026, 544 here vs 220 published).
+
+      - name: n_commissioner_rows
+        type: integer
+        meaning: Number of commissioner rows in the source extract summed into this row.
+        units: rows
+        examples: [2, 10, 37]
+        gotchas: []
+
+      - name: pct_within_18_weeks
+        type: double
+        meaning: within_18_weeks / known_clock_start for this row.
+        units: proportion (0-1)
+        examples: [0.4914, 0.7089, 0.9746]
+        gotchas:
+          - Never mean() this column. Recalculate as sum(within_18_weeks) / sum(known_clock_start)
+            (Aug 2026, 65.2% right vs 77.2% wrong).
+
+  - name: ae_provider
+    file: data/clean/ae_provider.parquet
+    source: https://www.england.nhs.uk/statistics/statistical-work-areas/ae-waiting-times-and-activity/
+    built_by: data/ingest/ae_provider.R
+    grain: month x provider
+    rows: 4721
+    date_range: {from: 2024-10-01, to: 2026-09-01}
+    unique_key: [period, org_code]
+    join_key:
+      to_rtt_incomplete_provider: {this: org_code, other: provider_org_code}
+    gotchas:
+      - Covers Oct 2024 to Sep 2026, so its latest month (Sep 2026) differs from RTT's (Aug 2026).
+      - period is activity during the month, stored as the 1st of the month.
+      - Matches NHS England's published national figures exactly.
+      - There are two different 4-hour measures. Say which one you're quoting.
+      - Many providers aren't hospitals (walk-in centres, UTCs, or no attendances at all). To rank
+        hospitals, filter attendances_type1_all > 0.
+      - Percentages are ratios of sums. Never mean() the pct_* columns.
+      - Group by code, not name (11 org codes change name).
+      - Joining to RTT loses providers (only 136 of 191 codes appear in RTT). Use left_join.
+
+    columns:
+      - name: period
+        type: date
+        meaning: Activity month, stored as the 1st of the month.
+        units: month
+        examples: [2024-10-01, 2025-11-01, 2026-09-01]
+        gotchas:
+          - Activity during the month, unlike RTT's month-end snapshot.
+          - Range is Oct 2024 to Sep 2026, which differs from RTT.
+
+      - name: org_code
+        type: string
+        meaning: ODS code of the reporting provider (trust, UTC, walk-in centre, etc.).
+        units: code
+        examples: [RTH, NTV0B, Y00751]
+        gotchas:
+          - Group by code, not name.
+          - An NHS trust has a 3-character code starting with R or T. Longer codes are
+            independent-sector or other sites.
+          - Joins to RTT provider_org_code. Only 136 of 191 codes match; use left_join.
+
+      - name: parent_org
+        type: string
+        meaning: NHS England region of the provider.
+        units: text
+        examples: [NHS ENGLAND MIDLANDS, NHS ENGLAND SOUTH WEST, NHS ENGLAND LONDON]
+        gotchas:
+          - A different level from RTT's provider_parent_* (which is the ICB).
+
+      - name: org_name
+        type: string
+        meaning: Provider name as published that month.
+        units: text
+        examples: [OXFORD UNIVERSITY HOSPITALS NHS FOUNDATION TRUST, ASHFORD WALK-IN-CENTRE, BADGER LTD]
+        gotchas:
+          - Names change over time (11 codes). Group by code and show the latest name.
+
+      - name: attendances_type1
+        type: double
+        meaning: Unplanned attendances at Type 1 (major, consultant-led 24-hour) A&E departments,
+          excluding booked appointments.
+        units: attendances
+        examples: [5928, 10390, 18240]
+        gotchas: []
+
+      - name: attendances_type2
+        type: double
+        meaning: Unplanned attendances at Type 2 (single-specialty, e.g. eye or dental) A&E,
+          excluding booked appointments.
+        units: attendances
+        examples: [218, 1122, 2591]
+        gotchas: []
+
+      - name: attendances_other
+        type: double
+        meaning: Unplanned attendances at other A&E departments (Type 3 and 4, i.e. urgent treatment
+          centres, minor injury units and walk-in centres), excluding booked appointments.
+        units: attendances
+        examples: [962, 3743, 10430]
+        gotchas: []
+
+      - name: attendances_booked_type1
+        type: double
+        meaning: Booked appointments attended at Type 1 departments (e.g. booked via NHS 111).
+        units: attendances
+        examples: [23, 330, 1531]
+        gotchas: []
+
+      - name: attendances_booked_type2
+        type: double
+        meaning: Booked appointments attended at Type 2 departments.
+        units: attendances
+        examples: [1, 15, 498]
+        gotchas: []
+
+      - name: attendances_booked_other
+        type: double
+        meaning: Booked appointments attended at other (Type 3 and 4) departments.
+        units: attendances
+        examples: [25, 320, 1748]
+        gotchas: []
+
+      - name: over_4hrs_type1
+        type: double
+        meaning: Type 1 unplanned attendances with more than 4 hours from arrival to admission,
+          transfer or discharge.
+        units: attendances
+        examples: [2239, 4124, 7811]
+        gotchas: []
+
+      - name: over_4hrs_type2
+        type: double
+        meaning: Type 2 unplanned attendances over 4 hours.
+        units: attendances
+        examples: [6, 81, 220]
+        gotchas: []
+
+      - name: over_4hrs_other
+        type: double
+        meaning: Other-department (Type 3 and 4) unplanned attendances over 4 hours.
+        units: attendances
+        examples: [8, 109, 469]
+        gotchas: []
+
+      - name: over_4hrs_booked_type1
+        type: double
+        meaning: Type 1 booked appointments over 4 hours.
+        units: attendances
+        examples: [8, 86, 469]
+        gotchas: []
+
+      - name: over_4hrs_booked_type2
+        type: double
+        meaning: Type 2 booked appointments over 4 hours.
+        units: attendances
+        examples: [1, 25, 36]
+        gotchas: []
+
+      - name: over_4hrs_booked_other
+        type: double
+        meaning: Other-department booked appointments over 4 hours.
+        units: attendances
+        examples: [1, 7, 43]
+        gotchas: []
+
+      - name: dta_wait_4_to_12hrs
+        type: double
+        meaning: Patients who waited 4 to 12 hours in A&E from decision to admit to admission.
+          CHECK which bucket a wait of exactly 4 or exactly 12 hours falls into.
+        units: patients
+        examples: [203, 580, 1242]
+        gotchas: []
+
+      - name: dta_wait_over_12hrs
+        type: double
+        meaning: Patients who waited over 12 hours in A&E from decision to admit to admission
+          ("trolley waits").
+        units: patients
+        examples: [17, 334, 953]
+        gotchas:
+          - Measured from the decision to admit, not from arrival. 12 hours from arrival is NOT in
+            this data; it's in NHS England's separate ECDS supplementary analysis.
+
+      - name: emergency_admissions_type1
+        type: double
+        meaning: Emergency admissions via Type 1 A&E.
+        units: admissions
+        examples: [1454, 2873, 5534]
+        gotchas: []
+
+      - name: emergency_admissions_type2
+        type: double
+        meaning: Emergency admissions via Type 2 A&E.
+        units: admissions
+        examples: [2, 15, 131]
+        gotchas: []
+
+      - name: emergency_admissions_other
+        type: double
+        meaning: Emergency admissions via other (Type 3 and 4) A&E departments.
+        units: admissions
+        examples: [3, 49, 408]
+        gotchas: []
+
+      - name: other_emergency_admissions
+        type: double
+        meaning: Emergency admissions that did not come through A&E.
+        units: admissions
+        examples: [95, 633, 2337]
+        gotchas:
+          - Part of emergency_admissions_total. Leave it out of A&E conversion rates.
+
+      - name: attendances_total
+        type: double
+        meaning: All attendances, every type plus booked appointments (sum of the six
+          attendances_* columns).
+        units: attendances
+        examples: [1478, 11070, 25380]
+        gotchas:
+          - Denominator of the headline 4-hour measure.
+
+      - name: over_4hrs_total
+        type: double
+        meaning: All attendances over 4 hours, every type plus booked (sum of the six
+          over_4hrs_* columns).
+        units: attendances
+        examples: [27, 3533, 7311]
+        gotchas: []
+
+      - name: pct_within_4hrs
+        type: double
+        meaning: Headline 4-hour measure, 1 - over_4hrs_total / attendances_total.
+          NA when there were no attendances.
+        units: proportion (0-1)
+        examples: [0.6381, 0.7738, 1.0]
+        gotchas:
+          - Headline measure (all types, incl. booked), 74.4% in Sep 2026. Say which measure you're quoting.
+          - Never mean() this column. Recalculate as a ratio of sums (80.6% wrong vs 74.4% right).
+          - NA where has_ae_activity is FALSE.
+
+      - name: attendances_type1_all
+        type: double
+        meaning: Type 1 attendances including Type 1 booked appointments.
+        units: attendances
+        examples: [6037, 10600, 18800]
+        gotchas:
+          - Filter > 0 to rank hospitals (major A&E providers only).
+
+      - name: over_4hrs_type1_all
+        type: double
+        meaning: Type 1 attendances over 4 hours, including Type 1 booked appointments.
+        units: attendances
+        examples: [2261, 4193, 7874]
+        gotchas: []
+
+      - name: pct_within_4hrs_type1
+        type: double
+        meaning: Major A&E 4-hour measure, 1 - over_4hrs_type1_all / attendances_type1_all.
+          NA for providers with no Type 1 attendances.
+        units: proportion (0-1)
+        examples: [0.4729, 0.5958, 0.7329]
+        gotchas:
+          - Major A&E only, 60.6% in Sep 2026. It's a different measure from pct_within_4hrs.
+          - Never mean() this column. Recalculate as a ratio of sums.
+
+      - name: emergency_admissions_via_ae
+        type: double
+        meaning: Emergency admissions via any A&E type (sum of the three emergency_admissions_* columns).
+        units: admissions
+        examples: [1139, 2787, 5453]
+        gotchas:
+          - For A&E conversion rates, use emergency_admissions_via_ae / attendances_total.
+
+      - name: emergency_admissions_total
+        type: double
+        meaning: All emergency admissions, via A&E plus other emergency admissions.
+        units: admissions
+        examples: [204, 3674, 6869]
+        gotchas:
+          - Includes admissions that didn't come through A&E. Don't use it for A&E conversion rates.
+
+      - name: has_ae_activity
+        type: boolean
+        meaning: TRUE if the provider had any attendances that month.
+        units: flag
+        examples: [true, true, false]
+        gotchas:
+          - Where FALSE, the pct_* columns are NA. These are not hospitals; exclude them from
+            A&E performance questions.
+
+      - name: source_file
+        type: string
+        meaning: Name of the raw CSV in data/raw/ae/ that the row came from.
+        units: filename
+        examples:
+          - Monthly-AE-October-2024-revised.csv
+          - February-2026-CSV-Dl8t54.csv
+          - September-2026-CSV-Re72Eh.csv
+        gotchas: []
