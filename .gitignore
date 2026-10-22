@@ -3,6 +3,8 @@
 # git cannot re-include files inside a directory that is itself ignored.
 data/*
 !data/ingest/
+!data/notes.md
+!data/catalogue.yaml
 
 # R
 .Rhistory

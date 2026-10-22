@@ -115,8 +115,7 @@ process_month <- function(path, expected_month) {
   count_cols <- c(band_cols, "patients_with_unknown_clock_start_date", "total_all")
   n_blank <- sum(is.na(inc[count_cols]))
   inc_filled <- mutate(inc, across(all_of(count_cols), \(x) coalesce(x, 0)))
-  cat(sprintf("  %-58s %12s cells\n", "blank count cells set to 0", fmt_n(n_blank)))
-  log_step(inc_filled, "after filling blanks", inc)
+  log_step(inc_filled, sprintf("set %s blank count cells to 0", fmt_n(n_blank)), inc)
   inc <- inc_filled
   rm(inc_filled)
 
@@ -140,6 +139,7 @@ process_month <- function(path, expected_month) {
   #   within 18 weeks = bands with A < 18 (that is, up to 18 weeks)
   #   over 52 weeks   = bands with A >= 52 (more than 52 weeks), and so on.
   # These follow NHS England's published 18/52/65/78/104-week measures.
+  n_before <- nrow(inc)
   inc <- inc |>
     mutate(
       known_clock_start = band_sum,
@@ -150,6 +150,7 @@ process_month <- function(path, expected_month) {
       over_104_weeks  = rowSums(pick(all_of(band_cols[band_lower >= 104])))
     ) |>
     select(-all_of(band_cols), -total)
+  log_step(inc, "add wait-threshold measures, drop band columns", n_before)
 
   # AGGREGATE: add up across commissioners to get provider level. This merges
   # rows; it does not remove any patients. The check below confirms that the
@@ -181,10 +182,12 @@ process_month <- function(path, expected_month) {
 
   # PERIOD: "RTT-August-2026" becomes 2026-08-01, the first day of the
   # reporting month. Waiting lists are a snapshot taken at month end.
+  n_before <- nrow(prov)
   prov <- mutate(prov, period = parse_period_month(period))
   if (anyNA(prov$period) || any(prov$period != expected_month)) {
     stop(sprintf("Period inside %s does not match the month in its filename.", basename(path)))
   }
+  log_step(prov, "parse period to month-start date", n_before)
 
   prov
 }
@@ -196,6 +199,7 @@ cat("\nCombining months\n")
 rtt <- list_rbind(monthly)
 log_step(rtt, sprintf("bind %d months", length(monthly)), sum(map_int(monthly, nrow)))
 
+n_before <- nrow(rtt)
 rtt <- rtt |>
   rename(
     total_incomplete = total_all,
@@ -217,7 +221,7 @@ rtt <- rtt |>
   relocate(over_18_weeks, .after = within_18_weeks) |>
   relocate(is_all_specialties_total, .after = treatment_function_name) |>
   arrange(period, provider_org_code, treatment_function_code)
-log_step(rtt, "add derived measures")
+log_step(rtt, "add derived measures", n_before)
 
 # CHECK: for each provider and month, C_999 should equal the sum of the
 # specialty rows. Mismatches are printed and kept as published.
