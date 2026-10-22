@@ -56,6 +56,12 @@ Data as downloaded 21 Oct 2026. Always state the "as of" month in answers.
   trusts unless asked otherwise.
 - **`provider_parent_*` is the ICB, not the region.** ICBs merged in Apr 2026:
   42 up to Mar 2026, 36 from Apr 2026, 48 codes in all. ICB trends break at Apr 2026.
+- **A provider's parent ICB can change over time.** Almost all changes
+  happen in Apr 2026 with the ICB mergers, but a few providers move at
+  other times (Sandwell and West Birmingham in Aug 2025; Pioneer
+  Healthcare moves to Hampshire in Jul 2025 and back in Jul 2026, which
+  looks like a data quality issue). For ICB trends, assign each provider
+  to one ICB for the whole period rather than using the monthly code.
 - **`unknown_clock_start` is always 0.** Ignore it.
 
 ## A&E (`ae_provider.parquet`)
