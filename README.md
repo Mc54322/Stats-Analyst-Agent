@@ -10,17 +10,27 @@ An LLM agent that answers questions about NHS England statistics by writing and 
 .
 ├── R/
 │   └── ingest_helpers.R           # shared helpers: scraping, downloads, row-count logging
-├── data/                          # everything except data/ingest/ is gitignored
+├── data/                          # gitignored except ingest/, notes.md, catalogue.yaml
 │   ├── ingest/                    # one script per dataset: download -> clean -> parquet
 │   │   ├── rtt_incomplete_provider.R
 │   │   └── ae_provider.R
-│   ├── raw/                       # untouched downloads, one folder per dataset
-│   └── clean/                     # tidy parquet, read by the agent
+│   ├── raw/                       # untouched downloads (not in git)
+│   │   ├── rtt/                   # monthly RTT full-extract ZIPs
+│   │   └── ae/                    # monthly A&E CSVs
+│   ├── clean/                     # tidy parquet read by the agent (not in git)
+│   │   ├── rtt_incomplete_provider.parquet
+│   │   └── ae_provider.parquet
+│   ├── notes.md                   # gotchas that cause wrong answers
+│   └── catalogue.yaml             # tables and columns: meaning, units, examples, gotchas
+├── renv/                          # renv activation script and settings (library not in git)
+├── .Rprofile                      # activates renv when R starts in the project
 ├── DESCRIPTION                    # declared R packages (renv reads this)
 ├── setup_r.R                      # one-time renv setup
 ├── renv.lock                      # pinned R packages (created by setup_r.R)
+├── Stats Analyst Agent.Rproj      # RStudio project file
 ├── pyproject.toml / uv.lock       # Python environment (agent code goes here later)
-└── .python-version
+├── .python-version
+└── scratch/                       # local working files (not in git)
 ```
 
 ## Setup
