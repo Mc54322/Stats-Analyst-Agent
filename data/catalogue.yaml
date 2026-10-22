@@ -64,6 +64,10 @@ tables:
           - This is the ICB, not the region.
           - ICBs merged in Apr 2026 (42 up to Mar 2026, 36 from Apr 2026, 48 codes in all),
             so ICB trends break at Apr 2026.
+          - The same provider can have different parent codes in different months. Almost all
+            changes are the Apr 2026 mergers, but RXK moves in Aug 2025, and NEY moves to Hampshire
+            in Jul 2025 and back in Jul 2026 (likely a data quality issue). For ICB trends, assign
+            each provider to one ICB for the whole period; don't group by the monthly code.
 
       - name: provider_parent_name
         type: string
