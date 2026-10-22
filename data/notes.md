@@ -41,6 +41,9 @@ Data as downloaded 21 Oct 2026. Always state the "as of" month in answers.
   is 7,370,100.
   - Sheffield (RHQ, ~97k) is missing from Jul 2025 onwards.
   - Barking, Havering & Redbridge (RF4, ~72k) is missing Nov 2025.
+  - Mar 2026 (−110,702) is NOT a missing submission: no provider is missing,
+    102 of 150 trusts fell, and NHS England's published total shows the same drop.
+    Treat it as a real fall.
   - A month-on-month drop may be a gap in submissions, not a real fall. Check the
     provider count per month.
 - **Mergers break provider time series.**
