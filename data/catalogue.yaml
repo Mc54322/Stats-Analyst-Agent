@@ -52,9 +52,12 @@ tables:
       - name: provider_parent_org_code
         type: string
         meaning: ODS code of the Integrated Care Board (ICB) where the provider is located. One ICB
-          per provider, whoever commissions the pathway. NHS England guidance doesn't define this
-          column; the location reading is inferred from the data (12 of 12 providers with a place
-          in their name sit in the ICB that covers that place).
+          per provider in each month, whoever commissions the pathway. NHS England guidance doesn't
+          define this column; the location reading is inferred from the data (12 of 12 providers
+          with a place in their name sit in the ICB that covers that place). The code can change
+          for the same provider over time. 144 of 563 providers have more than one parent code
+          across the period. 142 of the changes happen in Apr 2026 with the ICB mergers, plus RXK
+          (QHL to QUA, Aug 2025) and NEY (QF7 to QRL in Jul 2025, back to QF7 in Jul 2026).
         units: code
         examples: [QR1, QRL, QE1]
         gotchas:
@@ -64,7 +67,8 @@ tables:
 
       - name: provider_parent_name
         type: string
-        meaning: Name of the provider's ICB.
+        meaning: Name of the provider's ICB in that month. It can change for the same provider over
+          time (see provider_parent_org_code).
         units: text
         examples:
           - NHS GLOUCESTERSHIRE INTEGRATED CARE BOARD
