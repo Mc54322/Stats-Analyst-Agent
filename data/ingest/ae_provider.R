@@ -106,8 +106,10 @@ read_month <- function(path, expected_month) {
   # Extra columns are reported rather than dropped without a word. They would
   # need a decision about whether they belong in the tidy output.
   if (length(extra) > 0) cat(sprintf("  NOTE: %s has extra columns, not kept: %s\n", basename(path), toString(extra)))
-  df <- select(df, all_of(AE_COLS))
   log_step(df, sprintf("read %s (%s)", basename(path), format(expected_month, "%b %Y")))
+  selected <- select(df, all_of(AE_COLS))
+  log_step(selected, "  select and rename columns", df)
+  df <- selected
   mutate(df, expected_month = expected_month, source_file = basename(path))
 }
 
@@ -156,12 +158,12 @@ ae <- mutate(ae, across(all_of(c("org_code", "parent_org", "org_name")), str_squ
 n_changed <- sum(before$parent_org != ae$parent_org, na.rm = TRUE) +
   sum(before$org_name != ae$org_name, na.rm = TRUE) +
   sum(before$org_code != ae$org_code, na.rm = TRUE)
-cat(sprintf("  %-58s %12s cells\n", "text cells with whitespace trimmed", fmt_n(n_changed)))
-log_step(ae, "after trimming whitespace", before)
+log_step(ae, sprintf("trim whitespace in %s text cells", fmt_n(n_changed)), before)
 rm(before)
 
 # PERIOD: "MSitAE-SEPTEMBER-2026" becomes 2026-09-01, the first day of the
 # activity month. It must match the month in the link text.
+n_before <- nrow(ae)
 ae <- mutate(ae, period = parse_period_month(period))
 bad_period <- filter(ae, is.na(period) | period != expected_month)
 if (nrow(bad_period) > 0) {
@@ -169,7 +171,7 @@ if (nrow(bad_period) > 0) {
   stop("Period inside some files does not match their link text (listed above).")
 }
 ae <- select(ae, -expected_month)
-log_step(ae, "parse period to month-start date")
+log_step(ae, "parse period to month-start date", n_before)
 
 # MISSING COUNTS: the files use explicit zeros, so a blank count is unexpected.
 # Blanks are kept as NA, not set to 0, because we cannot tell a true zero from
@@ -196,6 +198,7 @@ if (nrow(dup_keys) > 0) {
 # hours or less, from arrival to admission, transfer or discharge. The Type 1
 # figure uses Type 1 attendances plus Type 1 booked appointments. Both are NA
 # when there were no attendances, rather than dividing by zero.
+n_before <- nrow(ae)
 ae <- ae |>
   mutate(
     attendances_total = attendances_type1 + attendances_type2 + attendances_other +
@@ -213,7 +216,7 @@ ae <- ae |>
     # are flagged so A&E performance questions can exclude them on purpose.
     has_ae_activity = coalesce(attendances_total, 0) > 0
   )
-log_step(ae, "add derived totals and 4-hour percentages")
+log_step(ae, "add derived totals and 4-hour percentages", n_before)
 
 # CHECK: attendances over 4 hours should never exceed attendances. Rows that
 # do are printed and kept as published.
