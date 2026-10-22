@@ -51,8 +51,10 @@ tables:
 
       - name: provider_parent_org_code
         type: string
-        meaning: ODS code of the provider's Integrated Care Board (ICB). CHECK whether this is the
-          ICB the provider is located in.
+        meaning: ODS code of the Integrated Care Board (ICB) where the provider is located. One ICB
+          per provider, whoever commissions the pathway. NHS England guidance doesn't define this
+          column; the location reading is inferred from the data (12 of 12 providers with a place
+          in their name sit in the ICB that covers that place).
         units: code
         examples: [QR1, QRL, QE1]
         gotchas:
@@ -364,8 +366,9 @@ tables:
 
       - name: dta_wait_4_to_12hrs
         type: double
-        meaning: Patients who waited 4 to 12 hours in A&E from decision to admit to admission.
-          CHECK which bucket a wait of exactly 4 or exactly 12 hours falls into.
+        meaning: Patients who waited more than 4 and up to 12 hours in A&E from decision to admit
+          to admission (04:00:01 to 12:00:00 inclusive, per NHS England's A&E definitions v5.0,
+          page 10). A wait of exactly 4 hours is in neither column; exactly 12 hours is here.
         units: patients
         examples: [203, 580, 1242]
         gotchas: []
@@ -373,7 +376,7 @@ tables:
       - name: dta_wait_over_12hrs
         type: double
         meaning: Patients who waited over 12 hours in A&E from decision to admit to admission
-          ("trolley waits").
+          ("trolley waits"), i.e. 12:00:01 or longer (A&E definitions v5.0, page 10).
         units: patients
         examples: [17, 334, 953]
         gotchas:
