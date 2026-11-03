@@ -73,32 +73,40 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic()
 
 
-def complete_with_usage(
-    prompt: str,
+def send(
+    messages: list[dict],
     *,
     model: str | None = None,
     system: str | None = None,
+    cache_system: bool = False,
     max_tokens: int = DEFAULT_MAX_TOKENS,
-) -> tuple[str, Usage]:
-    """Send one prompt and return (text, usage including cost)."""
+    output_config: dict | None = None,
+):
+    """Send a conversation and return (response, usage). Every call is budget-checked.
+
+    ``cache_system`` marks the system prompt for prompt caching, which makes
+    repeated calls with the same long system prompt (e.g. the data catalogue)
+    much cheaper. ``output_config`` is passed through, e.g. a JSON schema for
+    structured output.
+    """
     _load_env()
     model = model or default_model()
-    request = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": prompt}],
-    }
+    request: dict = {"model": model, "max_tokens": max_tokens, "messages": messages}
     if system:
-        request["system"] = system
+        request["system"] = (
+            [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+            if cache_system else system
+        )
+    if output_config:
+        request["output_config"] = output_config
 
     client = _client()
     tracker = budget.get_tracker()
 
     # Before the call: count the input exactly (the token-counting endpoint
     # is free) and refuse if the worst case would exceed what's left.
-    counted = client.messages.count_tokens(
-        model=model, messages=request["messages"], **({"system": system} if system else {})
-    )
+    count_args = {k: request[k] for k in ("model", "messages", "system", "output_config") if k in request}
+    counted = client.messages.count_tokens(**count_args)
     estimate = budget.worst_case_cost_usd(model, counted.input_tokens, max_tokens)
     tracker.check(estimate)
 
@@ -114,7 +122,6 @@ def complete_with_usage(
         category = response.stop_details.category if response.stop_details else None
         raise LLMRefusalError(f"The model declined this request (category: {category}).")
 
-    text = "".join(block.text for block in response.content if block.type == "text")
     usage = Usage(
         model=response.model,
         input_tokens=entry.input_tokens,
@@ -123,7 +130,25 @@ def complete_with_usage(
         run_spent_usd=round(tracker.spent_usd, 6),
         run_budget_usd=tracker.budget_usd,
     )
-    return text, usage
+    return response, usage
+
+
+def response_text(response) -> str:
+    return "".join(block.text for block in response.content if block.type == "text")
+
+
+def complete_with_usage(
+    prompt: str,
+    *,
+    model: str | None = None,
+    system: str | None = None,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+) -> tuple[str, Usage]:
+    """Send one prompt and return (text, usage including cost)."""
+    response, usage = send(
+        [{"role": "user", "content": prompt}], model=model, system=system, max_tokens=max_tokens
+    )
+    return response_text(response), usage
 
 
 def complete(
