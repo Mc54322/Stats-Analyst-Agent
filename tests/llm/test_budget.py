@@ -89,7 +89,7 @@ def test_call_that_could_exceed_cap_is_refused_before_sending(monkeypatch, isola
     monkeypatch.setenv("BUDGET_USD", "0.001")
     fake = use(monkeypatch, FakeClient(input_tokens=1_000))
 
-    # Worst case: 1,000 input + 16,000 output tokens = $0.0081, over the $0.001 cap.
+    # Worst case: 1,000 input (at the $0.125 cache-write rate) + 16,000 output = $0.0081, over the $0.001 cap.
     with pytest.raises(BudgetExceededError, match=r"spent \$0\.0000 of its \$0\.0010 budget.*up to \$0\.0081"):
         client.complete_with_usage("say hello", max_tokens=16_000)
 
@@ -98,7 +98,8 @@ def test_call_that_could_exceed_cap_is_refused_before_sending(monkeypatch, isola
 
 
 def test_cap_stops_a_run_once_spent_and_says_how_much(monkeypatch, isolated):
-    # $0.002 cap; each call's worst case is (1,000 * 0.10 + 2,000 * 0.50) / 1e6 = $0.0011.
+    # $0.002 cap; each call's worst case is (1,000 * 0.125 + 2,000 * 0.50) / 1e6 = $0.001125,
+    # and each call actually costs (1,000 * 0.10 + 2,000 * 0.50) / 1e6 = $0.0011.
     monkeypatch.setenv("BUDGET_USD", "0.002")
     fake = use(monkeypatch, FakeClient(input_tokens=1_000, output_tokens=2_000))
 
@@ -160,8 +161,9 @@ def test_sonnet_fallback_is_priced_per_model_attempt(monkeypatch, isolated):
 
 
 def test_sonnet_worst_case_allows_for_a_paid_fallback(monkeypatch, isolated):
+    # Input priced at the 5-minute cache-write rate ($2.50), output at $10, doubled for the fallback.
     estimate = budget.worst_case_cost_usd("claude-sonnet-5-5", input_tokens=1_000, max_tokens=1_000)
-    assert estimate == pytest.approx(2 * (1_000 * SONNET_IN + 1_000 * SONNET_OUT) / 1e6)
+    assert estimate == pytest.approx(2 * (1_000 * 2.50 + 1_000 * SONNET_OUT) / 1e6)
 
 
 def test_invalid_budget_is_rejected(monkeypatch, isolated):
