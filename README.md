@@ -33,6 +33,19 @@ An LLM agent that answers questions about NHS England statistics by writing and 
 └── scratch/                       # local working files (not in git)
 ```
 
+## Tech stack
+
+- **Data and analysis:** R (tidyverse, arrow), managed with renv
+- **Agent:** Python, managed with uv
+- **LLM:** Claude API (Claude Haiku 5.5 for development, Claude Sonnet 5.5 for final evaluation runs), with a $5 spend limit for v1
+- **Code execution:** Docker sandbox for agent-written R (no network, read-only data, time and memory limits)
+
+### Cost controls
+
+- **$5 cap per run.** A run is one process: one eval run, one smoke test, or one app session. Before each call, its worst-case cost (all input tokens plus the full `max_tokens` of output) is checked against what's left. A call that could go over is refused with an error saying how much has been spent.
+- **Cumulative ledger.** Every call's date, model, tokens and cost is appended to `.spend/ledger.json` (gitignored), so total spend over time is visible.
+- **Configurable** with `BUDGET_USD` in `.env` (default 5). Prices come from `agent/llm/pricing.toml`, which records where they were checked and when.
+
 ## Setup
 
 You need R (4.3 or later) and [uv](https://docs.astral.sh/uv/). With Homebrew R, packages compile from source and need some system libraries first.
