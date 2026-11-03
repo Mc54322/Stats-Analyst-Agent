@@ -1,0 +1,11 @@
+# The sandbox image only needs renv.lock and sandbox/image/. Keep data,
+# environments and secrets out of the build context.
+data/
+renv/library/
+.venv/
+.sandbox-runs/
+scratch/
+eval/
+.env
+.env.*
+.git/

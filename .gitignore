@@ -43,6 +43,7 @@ htmlcov/
 # Outputs and local scratch work
 outputs/
 scratch/
+.sandbox-runs/
 *.log
 
 # Editors / OS
