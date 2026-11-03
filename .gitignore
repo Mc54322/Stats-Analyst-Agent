@@ -44,6 +44,7 @@ htmlcov/
 outputs/
 scratch/
 .sandbox-runs/
+.spend/
 *.log
 
 # Editors / OS
