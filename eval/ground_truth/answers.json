@@ -1,0 +1,129 @@
+{
+  "data_as_of": "2026-10-21",
+  "source_rows": {
+    "rtt": 98143,
+    "ae": 4721
+  },
+  "answers": [
+    {
+      "id": "q01",
+      "answer_type": "number",
+      "units": "attendances",
+      "answer": 19993
+    },
+    {
+      "id": "q02",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": 89940
+    },
+    {
+      "id": "q03",
+      "answer_type": "yes/no",
+      "units": "yes/no",
+      "answer": "no"
+    },
+    {
+      "id": "q04",
+      "answer_type": "count",
+      "units": "providers",
+      "answer": 9
+    },
+    {
+      "id": "q05",
+      "answer_type": "number",
+      "units": "patients",
+      "answer": 50582
+    },
+    {
+      "id": "q06",
+      "answer_type": "count",
+      "units": "providers",
+      "answer": 75
+    },
+    {
+      "id": "q07",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": 7189213
+    },
+    {
+      "id": "q08",
+      "answer_type": "number",
+      "units": "percent",
+      "answer": 74.3633175348084
+    },
+    {
+      "id": "q09",
+      "answer_type": "number",
+      "units": "percentage points",
+      "answer": 13.786022802217
+    },
+    {
+      "id": "q10",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": 100470
+    },
+    {
+      "id": "q11",
+      "answer_type": "number",
+      "units": "attendances",
+      "answer": 84207
+    },
+    {
+      "id": "q12",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": -138646
+    },
+    {
+      "id": "q13",
+      "answer_type": "number",
+      "units": "percent",
+      "answer": 65.1613604994038
+    },
+    {
+      "id": "q14",
+      "answer_type": "count",
+      "units": "providers",
+      "answer": 144
+    },
+    {
+      "id": "q15",
+      "answer_type": "ranking list",
+      "units": "org codes, highest first",
+      "answer": ["RRK", "R0A", "RYR", "RAJ", "RAL"]
+    },
+    {
+      "id": "q16",
+      "answer_type": "ranking list",
+      "units": "treatment function codes, highest first",
+      "answer": ["C_110", "C_130", "X02"]
+    },
+    {
+      "id": "q17",
+      "answer_type": "number",
+      "units": "percent",
+      "answer": 16.415467801728
+    },
+    {
+      "id": "q18",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": 2292
+    },
+    {
+      "id": "q19",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": -87886
+    },
+    {
+      "id": "q20",
+      "answer_type": "ranking list",
+      "units": "provider codes, lowest first",
+      "answer": ["RAJ", "RYR", "RL1", "RVV", "RWA"]
+    }
+  ]
+}
