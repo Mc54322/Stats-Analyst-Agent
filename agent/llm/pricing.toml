@@ -1,0 +1,44 @@
+# Claude API prices used by the budget guard (agent/llm/budget.py).
+#
+# Copied from the official pricing page. Re-check before relying on them and
+# update checked_on when you do. Prices are USD per million tokens, standard
+# (global) routing, no batch discount.
+
+checked_on = "2026-11-03"
+source = "https://platform.claude.com/docs/en/about-claude/pricing"
+source_note = "docs.claude.com/en/docs/about-claude/pricing redirects to the source URL"
+
+# Development model. Priced by prompt length: a request whose prompt (input +
+# cache reads + cache writes) is over 100,000 tokens pays the long_prompt rates.
+[models.claude-haiku-5-5]
+input = 0.10
+output = 0.50
+cache_write_5m = 0.125
+cache_write_1h = 0.20
+cache_read = 0.01
+long_prompt_threshold = 100000
+
+[models.claude-haiku-5-5.long_prompt]
+input = 0.50
+output = 2.50
+cache_write_5m = 0.625
+cache_write_1h = 1.00
+cache_read = 0.05
+
+# Final-evaluation model.
+[models.claude-sonnet-5-5]
+input = 2.00
+output = 10.00
+cache_write_5m = 2.50
+cache_write_1h = 4.00
+cache_read = 0.10
+
+# Not called directly: the server-side refusal fallback for Claude Sonnet 5.5
+# retries "cyber" and "frontier_llm" declines on Claude Sonnet 5, and that
+# attempt is billed at Sonnet 5's rates.
+[models.claude-sonnet-5]
+input = 2.00
+output = 10.00
+cache_write_5m = 2.50
+cache_write_1h = 4.00
+cache_read = 0.20
