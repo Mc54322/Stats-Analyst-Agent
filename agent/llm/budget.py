@@ -86,9 +86,13 @@ def cost_usd(
 
 
 def worst_case_cost_usd(model: str, input_tokens: int, max_tokens: int) -> float:
-    """Upper bound for one call: every input token plus max_tokens of output."""
+    """Upper bound for one call: every input token plus max_tokens of output.
+
+    Input tokens are priced as cache writes (the dearest way to send input), so
+    the bound holds whether or not the prompt is cached.
+    """
     candidates = [model, *FALLBACK_MODELS.get(model, [])]
-    worst = max(cost_usd(m, input_tokens, max_tokens) for m in candidates)
+    worst = max(cost_usd(m, 0, max_tokens, cache_creation_input_tokens=input_tokens) for m in candidates)
     if model in FALLBACK_MODELS:
         worst *= FALLBACK_WORST_CASE_MULTIPLIER
     return worst

@@ -10,6 +10,8 @@ from agent.llm.client import (
     complete,
     complete_with_usage,
     default_model,
+    response_text,
+    send,
 )
 
 __all__ = [
@@ -23,5 +25,7 @@ __all__ = [
     "complete_with_usage",
     "default_model",
     "read_ledger",
+    "response_text",
+    "send",
     "total_spent_usd",
 ]
