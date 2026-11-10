@@ -79,6 +79,31 @@ def test_core_packages_are_preloaded():
     assert result.ok and result.retries == 0, result.error
 
 
+def test_refusal_needs_no_r_code(monkeypatch):
+    import agent.core
+
+    def no_sandbox(*args, **kwargs):
+        raise AssertionError("a refusal must not run any R code")
+
+    monkeypatch.setattr(agent.core, "run_r_script", no_sandbox)
+    reason = "The RTT data counts pathways, not unique patients."
+    llm = ScriptedLLM([reply("", refusal_reason=reason)])
+
+    result = answer_question("How many unique patients were waiting?", "number", "patients", llm=llm)
+
+    assert result.ok and result.retries == 0
+    assert result.answer == {"refused": True, "reason": reason}
+
+
+def test_reply_without_code_or_refusal_is_sent_back():
+    llm = ScriptedLLM([reply(""), reply(CORRECT_Q07_CODE)])
+
+    result = answer_question(Q07, "number", "pathways", llm=llm)
+
+    assert result.retries == 1 and result.ok
+    assert "r_code is required" in result.attempts[0].problem
+
+
 def test_wrong_answer_format_is_sent_back():
     # A two-value answer for a single-number question is a format problem, not a crash.
     llm = ScriptedLLM([reply("answer <- c(1, 2)"), reply("answer <- 3")])

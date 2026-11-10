@@ -34,10 +34,10 @@ class ScriptedLLM:
         return LLMTurn(text=text, content=[{"type": "text", "text": text}])
 
 
-def reply(r_code: str, answer_type: str = "number", datasets=("rtt",)) -> str:
-    """A valid JSON reply with the given R code."""
-    return json.dumps({"plan": "test plan", "datasets": list(datasets),
-                       "r_code": r_code, "answer_type": answer_type})
+def reply(r_code: str, answer_type: str = "number", datasets=("rtt",), refusal_reason=None) -> str:
+    """A valid JSON reply with the given R code (or a refusal, if refusal_reason is set)."""
+    return json.dumps({"plan": "test plan", "datasets": list(datasets), "r_code": r_code,
+                       "answer_type": answer_type, "refusal_reason": refusal_reason})
 
 
 @pytest.fixture(scope="session")

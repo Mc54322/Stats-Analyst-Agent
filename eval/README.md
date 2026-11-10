@@ -95,5 +95,7 @@ uv run python eval/run_eval.py --mock                # fake model, no API calls
 Each run is saved to `eval/runs/<timestamp>/` and goes through the spend cap
 (`BUDGET_USD`).
 
-**The baseline agent has no way to refuse yet,** so it can't pass q23–q25. A
-`--mock` run scores 27/30 for the same reason.
+The agent refuses by setting `refusal_reason` in its reply instead of writing
+R code. Its answer is then `{"refused": true, "reason": "..."}`, and the
+grader checks that refusing was right and that the reason explains why. A
+`--mock` run scores 30/30.

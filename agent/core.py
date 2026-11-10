@@ -193,6 +193,12 @@ def _run_attempt(attempt: Attempt, text: str, answer_type: str, timeout_s: int, 
     attempt.reply = reply.model_dump()
     result.plan, result.datasets, result.code = reply.plan, list(reply.datasets), reply.r_code
 
+    # A refusal is a complete answer: no code to run. The grader decides
+    # whether refusing was right and whether the reason explains why.
+    if reply.refused:
+        result.answer = {"refused": True, "reason": reply.refusal_reason.strip()}
+        return None
+
     # The declared answer_type is informational only: coerce_answer() below
     # checks the value R actually produced against the type the question needs.
     run = run_r_script(PACKAGE_PRELUDE + reply.r_code + ANSWER_EXPORT, timeout_s=timeout_s)
