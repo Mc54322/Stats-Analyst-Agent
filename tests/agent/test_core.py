@@ -59,6 +59,26 @@ def test_invalid_json_triggers_a_retry():
     assert "not valid JSON" in llm.calls[1][-1]["content"]
 
 
+def test_declared_answer_type_mismatch_is_not_a_retry():
+    # The value is a valid number; only the declared label differs. No retry.
+    llm = ScriptedLLM([reply(CORRECT_Q07_CODE, answer_type="count")])
+
+    result = answer_question(Q07, "number", "pathways", llm=llm)
+
+    assert result.ok and result.retries == 0 and len(llm.calls) == 1
+
+
+def test_core_packages_are_preloaded():
+    # %>% and filter() work without library(dplyr) in the model's code.
+    code = ('rtt <- read_parquet("data/clean/rtt_incomplete_provider.parquet")\n'
+            "answer <- rtt %>% filter(is_all_specialties_total) %>% nrow()")
+    llm = ScriptedLLM([reply(code, answer_type="count")])
+
+    result = answer_question("How many C_999 rows are there?", "count", "rows", llm=llm)
+
+    assert result.ok and result.retries == 0, result.error
+
+
 def test_wrong_answer_format_is_sent_back():
     # A two-value answer for a single-number question is a format problem, not a crash.
     llm = ScriptedLLM([reply("answer <- c(1, 2)"), reply("answer <- 3")])

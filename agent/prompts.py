@@ -22,6 +22,7 @@ directly; your code must compute the answer.
 
 Environment:
 - R 4.6 with dplyr, tidyr, readr, stringr, purrr, arrow, janitor and readxl.
+  dplyr, tidyr and arrow are already loaded. Prefer the native pipe |>.
 - The working directory contains the clean tables as parquet files, read-only:
   data/clean/rtt_incomplete_provider.parquet and data/clean/ae_provider.parquet.
   Read them with arrow::read_parquet("data/clean/<file>.parquet").
