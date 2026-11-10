@@ -33,7 +33,7 @@ About a third of the questions are traps: falling for a known gotcha (summing C_
 
 ### Removing answer leaks from the catalogue
 
-The first catalogue quoted exact figures in its gotchas: the national total, the 4-hour and 18-week percentages, and provider counts. Some of these were eval answers, or gave them away. They were replaced with descriptions ("about 31k higher than published"), and the catalogue and prompt were scanned once for every expected answer (a one-off check, not an automated test). The agent never copied the values, but an eval whose answers are in the prompt can't distinguish computing from copying. *Not taken:* leaving the figures in because they made the gotchas concrete.
+The first catalogue quoted exact figures in its gotchas: the national total, the 4-hour and 18-week percentages, and provider counts. Some of these were eval answers, or gave them away. They were replaced with descriptions ("about 31k above NHS England's published reported total"), and the catalogue and prompt were scanned once for every expected answer (a one-off check, not an automated test). The agent never copied the values, but an eval whose answers are in the prompt can't distinguish computing from copying. *Not taken:* leaving the figures in because they made the gotchas concrete.
 
 ### Not telling the agent which questions it should refuse
 

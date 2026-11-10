@@ -1,6 +1,6 @@
 # Stats Analyst Agent
 
-An LLM agent that answers questions about NHS England waiting list and A&E statistics by writing R code and running it in a sandbox.
+An LLM agent that answers questions about NHS England waiting list and A&E statistics by writing R code and running it in a sandbox, with an evaluation that measures how often it's right.
 
 ## What it does
 
@@ -12,34 +12,33 @@ For example:
 $ uv run python scripts/ask.py "How many incomplete RTT pathways were there in England in August 2026, and what share had waited 18 weeks or less?"
 
 Answer:
-  metric                                          value
-  incomplete RTT pathways (reported, incl. NONC)  7189213
-  share of pathways waiting 18 weeks or less      0.651613604994038
+  incomplete_pathways  pct_within_18_weeks
+  7189213              0.651613604994038
 
 Plan:
-  Read the RTT incomplete-provider table, keep only the all-specialties total rows
-  (is_all_specialties_total == TRUE, C_999) for period 2026-08-01, then sum total_incomplete
-  across providers for the national pathway count. For the share within 18 weeks, compute
-  sum(within_18_weeks) / sum(known_clock_start) as a ratio of sums, not a mean of the
-  percentage column. Figures are reported (non-submitting trusts missing) and include NONC
-  pathways, so they run about 31k above NHS England's published headline.
+  Read the RTT provider table. Keep only the all-specialty total rows
+  (is_all_specialties_total == TRUE, treatment_function_code C_999) for period 2026-08-01, so
+  no specialty rows are double-counted. Sum total_incomplete across providers to get the
+  national count of incomplete pathways. Get the share within 18 weeks as a ratio of sums:
+  sum(within_18_weeks) / sum(known_clock_start), not a mean of pct_within_18_weeks. Figures
+  are reported figures: they include NONC pathways and exclude estimates for non-submitting
+  trusts, so they will differ slightly from NHS England's published headline. Return a
+  one-row data frame with the pathway count and the share.
 
 R code:
+  library(dplyr)
   rtt <- arrow::read_parquet('data/clean/rtt_incomplete_provider.parquet')
-  aug <- rtt |> filter(period == as.Date('2026-08-01'), is_all_specialties_total == TRUE)
-  total <- sum(aug$total_incomplete, na.rm = TRUE)
-  within <- sum(aug$within_18_weeks, na.rm = TRUE)
-  known <- sum(aug$known_clock_start, na.rm = TRUE)
-  answer <- data.frame(metric = c('incomplete RTT pathways (reported, incl. NONC)',
-                                  'share of pathways waiting 18 weeks or less'),
-                       value = c(total, within / known))
+  nat <- rtt |> filter(period == as.Date('2026-08-01'), is_all_specialties_total == TRUE) |>
+    summarise(incomplete_pathways = sum(total_incomplete), within_18 = sum(within_18_weeks),
+              known = sum(known_clock_start))
+  answer <- data.frame(incomplete_pathways = nat$incomplete_pathways,
+                       pct_within_18_weeks = nat$within_18 / nat$known)
+  answer
 
-Retries: 0   Tokens: 154 in / 1,215 out   Cost: $0.0017
+Retries: 0   Tokens: 154 in / 1,188 out   Cost: $0.0017
 ```
 
-The `answer <-` line is wrapped here for width; everything else is printed exactly as it came back.
-
-That is real output from Claude Haiku 5.5. Both figures match the evaluation's ground truth: 7,189,213 pathways, and 65.2% within 18 weeks.
+That is real output from Claude Haiku 5.5, with long lines wrapped here for width. Both figures match the evaluation's ground truth: 7,189,213 pathways, and 65.2% within 18 weeks. The token counts exclude the cached system prompt (the instructions and data catalogue), which is written to the cache on the first call and read from it after that, and billed at the cache rates.
 
 ## Why I built it
 
@@ -110,11 +109,11 @@ The agent reads a data catalogue that describes every column and its gotchas. Th
 - the 4-hour and 18-week percentages,
 - the provider counts.
 
-I replaced them with descriptions ("about 31k higher than published") and scanned the catalogue and prompt for every expected answer. That scan was a one-off check, not an automated test. Accuracy didn't change when the leaks were removed. In 60 answers before the fix, the code always computed the value from the data and never wrote in a quoted figure. But an evaluation whose answers are in the prompt can't tell computing from copying.
+I replaced them with descriptions ("about 31k above NHS England's published reported total") and scanned the catalogue and prompt for every expected answer. That scan was a one-off check, not an automated test. Accuracy didn't change when the leaks were removed. In 60 answers before the fix, the code always computed the value from the data and never wrote in a quoted figure. But an evaluation whose answers are in the prompt can't tell computing from copying.
 
 ### The units leak in refusal questions
 
-Three questions (q23 to q25) ask for something the data can't provide, and the right answer is a refusal. The agent is only told what the question asks for, such as a number of patients, not that it should refuse. My first version passed the question's `units` field to the agent, and for these questions that field described the expected refusal. A test caught it before any live run used those questions. Refusal questions now give the agent separate `asks_for` and `asks_for_units` fields, and a test checks that no refusal prompt mentions refusing.
+Three questions (q23 to q25) ask for something the data can't provide, and the right answer is a refusal. The agent is only told what the question asks for, such as a number of patients, not that it should refuse. My first version passed the question's `units` field to the agent, and for these questions that field described the expected refusal. It was spotted while writing a test that checks refusal prompts never mention refusing, and fixed before that test or any live run used those questions. Refusal questions now give the agent separate `asks_for` and `asks_for_units` fields, and that test guards against the leak coming back.
 
 ### The isFALSE() guard
 
@@ -234,7 +233,7 @@ uv run python scripts/ask.py --interactive        # keep asking until you type q
 Three questions I tried on Claude Haiku 5.5, with the answers it gave:
 
 1. *"How many incomplete RTT pathways were there in England in August 2026, and what share had waited 18 weeks or less?"* It answered 7,189,213 pathways and 0.652 (65.2%), as a small labelled table; the full output is above.
-2. *"Which three NHS England regions had the lowest all-types A&E 4-hour performance in September 2026?"* It answered South West (71.8%), North West (71.8%) and Midlands (72.9%), as a table, which matches the evaluation's ground truth for the regional ranking.
+2. *"Which three NHS England regions had the lowest all-types A&E 4-hour performance in September 2026?"* It answered South West (71.79%), North West (71.82%) and Midlands (72.89%), as a table, which matches the evaluation's ground truth for the regional ranking.
 3. *"How many patients spent more than 12 hours in A&E from arrival in September 2026?"* It refused:
 
    > The data cannot answer this. The ae_provider table's dta_wait_over_12hrs column counts patients who waited over 12 hours from the decision to admit to admission (trolley waits), not from arrival. The 12-hours-from-arrival figure is only in NHS England's separate ECDS supplementary analysis, which is not included.
@@ -245,7 +244,7 @@ Each question and its full result is saved to `asked/` (gitignored), with any ch
 
 - **Data and analysis:** R (tidyverse, arrow, boot), managed with renv
 - **Agent:** Python, managed with uv
-- **LLM:** Claude API (Claude Haiku 5.5 for development and all results so far; Claude Sonnet 5.5 configured for final evaluation runs), with a $5 spend limit for v1
+- **LLM:** Claude API (Claude Haiku 5.5 for development and all results so far; Claude Sonnet 5.5 configured for final evaluation runs), with a $5 cap per run
 - **Code execution:** Docker sandbox for agent-written R (no network, read-only data, time and memory limits)
 
 ### Cost controls
@@ -328,7 +327,7 @@ If NHS England has revised past months since 21 Oct 2026, a fresh download can c
 
 ## How this was built
 
-I built this with Claude Code. It did the scaffolding, the infrastructure and most of the implementation. I made the design decisions, reviewed the data and every pull request, and chose each fix from the failure analysis. The ground truth is computed by a reproducible R script from the clean data.
+I built this with Claude Code. It did the scaffolding, the infrastructure and most of the implementation. I made the design decisions, reviewed the data and the pull requests, and chose each fix from the failure analysis. The ground truth is computed by a reproducible R script from the clean data.
 
 ## Licence
 
