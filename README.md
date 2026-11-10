@@ -11,25 +11,33 @@ For example:
 ```
 $ uv run python scripts/ask.py "How many incomplete RTT pathways were there in England in August 2026, and what share had waited 18 weeks or less?"
 
-Answer: 7189213, 0.651613604994038
+Answer:
+  metric                                          value
+  incomplete RTT pathways (reported, incl. NONC)  7189213
+  share of pathways waiting 18 weeks or less      0.651613604994038
 
 Plan:
-  Read the RTT provider table, keep the all-specialties total rows (is_all_specialties_total
-  TRUE, i.e. C_999) for August 2026, and sum across providers to get the national incomplete
-  pathway count. Compute the share waiting 18 weeks or less as sum(within_18_weeks) /
-  sum(known_clock_start), not a mean of the pct column. [...]
+  Read the RTT incomplete-provider table, keep only the all-specialties total rows
+  (is_all_specialties_total == TRUE, C_999) for period 2026-08-01, then sum total_incomplete
+  across providers for the national pathway count. For the share within 18 weeks, compute
+  sum(within_18_weeks) / sum(known_clock_start) as a ratio of sums, not a mean of the
+  percentage column. Figures are reported (non-submitting trusts missing) and include NONC
+  pathways, so they run about 31k above NHS England's published headline.
 
 R code:
-  library(dplyr)
-  rtt <- arrow::read_parquet("data/clean/rtt_incomplete_provider.parquet")
-  aug <- rtt |> filter(period == as.Date("2026-08-01"), is_all_specialties_total == TRUE)
-  total_pathways <- sum(aug$total_incomplete, na.rm = TRUE)
+  rtt <- arrow::read_parquet('data/clean/rtt_incomplete_provider.parquet')
+  aug <- rtt |> filter(period == as.Date('2026-08-01'), is_all_specialties_total == TRUE)
+  total <- sum(aug$total_incomplete, na.rm = TRUE)
   within <- sum(aug$within_18_weeks, na.rm = TRUE)
   known <- sum(aug$known_clock_start, na.rm = TRUE)
-  answer <- c(incomplete_pathways = total_pathways, pct_within_18_weeks = within / known)
+  answer <- data.frame(metric = c('incomplete RTT pathways (reported, incl. NONC)',
+                                  'share of pathways waiting 18 weeks or less'),
+                       value = c(total, within / known))
 
-Retries: 0   Tokens: 154 in / 949 out   Cost: $0.0016
+Retries: 0   Tokens: 154 in / 1,215 out   Cost: $0.0017
 ```
+
+The `answer <-` line is wrapped here for width; everything else is printed exactly as it came back.
 
 That is real output from Claude Haiku 5.5. Both figures match the evaluation's ground truth: 7,189,213 pathways, and 65.2% within 18 weeks.
 
@@ -204,7 +212,15 @@ Contains public sector information licensed under the Open Government Licence v3
 - **Patient-level questions:** the RTT data counts pathways, not people.
 - **Causal "why" questions,** such as why a trust's waiting list fell. The data shows what changed, not why.
 
-In testing, it refused the three out-of-scope questions in the evaluation correctly every time and never refused an answerable one. It hasn't been tested on "why" questions specifically.
+In testing, it refused the three out-of-scope questions in the evaluation correctly every time and never refused an answerable one.
+
+**What it actually does with "why" questions.** I tried two on Claude Haiku 5.5, and in both cases it answered rather than refused:
+- **"Why did A&E performance fall in winter 2025?"** It returned a table comparing December to February in winter 2024/25 and 2025/26 (4-hour performance, Type 1 performance, trolley waits, admissions). Its plan said the tables show outcomes, not causes, and that "causes would need additional data".
+- **"Why does Sheffield have no data after June 2025?"** It showed Sheffield's rows by month up to June 2025. Its plan said the data shows when the trust stops appearing but not why, and gave the catalogue's explanation (it didn't submit) as something the data can't confirm.
+
+So for "why" questions it describes what changed and says the cause isn't in the data. Two weaknesses:
+- **That caveat appears only in the plan,** not in the answer itself.
+- **It doesn't check the question's premise.** Its own table showed all-types 4-hour performance was higher in December 2025 and February 2026 than a year earlier, and only slightly lower in January, but it didn't point out that the question assumes a fall the data mostly doesn't show.
 
 ## Try it yourself
 
@@ -217,7 +233,7 @@ uv run python scripts/ask.py --interactive        # keep asking until you type q
 
 Three questions I tried on Claude Haiku 5.5, with the answers it gave:
 
-1. *"How many incomplete RTT pathways were there in England in August 2026, and what share had waited 18 weeks or less?"* It answered 7,189,213 and 0.652 (65.2%); the full output is above.
+1. *"How many incomplete RTT pathways were there in England in August 2026, and what share had waited 18 weeks or less?"* It answered 7,189,213 pathways and 0.652 (65.2%), as a small labelled table; the full output is above.
 2. *"Which three NHS England regions had the lowest all-types A&E 4-hour performance in September 2026?"* It answered South West (71.8%), North West (71.8%) and Midlands (72.9%), as a table, which matches the evaluation's ground truth for the regional ranking.
 3. *"How many patients spent more than 12 hours in A&E from arrival in September 2026?"* It refused:
 
@@ -261,7 +277,8 @@ Each question and its full result is saved to `asked/` (gitignored), with any ch
 ├── R/                           # shared R helpers for the ingest scripts
 ├── DESCRIPTION / renv.lock      # R packages
 ├── pyproject.toml / uv.lock     # Python packages
-└── setup_r.R                    # one-time R environment setup
+├── setup_r.R                    # one-time R environment setup
+└── LICENSE                      # MIT
 ```
 
 ## Running locally
@@ -301,7 +318,7 @@ If NHS England has revised past months since 21 Oct 2026, a fresh download can c
 - **q21 to q30 has wide intervals** (40% to 100% before the final stage), because there are only 10 questions. The stage differences within that set rest on the 3 refusal questions.
 - **Two datasets only,** and a snapshot as of 21 Oct 2026.
 - **Small, single-model sample:** 3 runs per stage, all on Claude Haiku 5.5. Sonnet 5.5 hasn't been evaluated.
-- **ask.py drops labels from a named list.** In free-form questions, a named R vector loses its names in the output: `c(incomplete_pathways = ..., pct_within_18_weeks = ...)` prints as two unlabelled numbers.
+- **"Why" questions get a description, not a refusal,** with the "causes aren't in the data" caveat only in the plan, and the question's premise isn't checked. See [Scope](#scope).
 
 ## What's next
 
@@ -315,4 +332,4 @@ I built this with Claude Code. It did the scaffolding, the infrastructure and mo
 
 ## Licence
 
-[TODO: choose a licence for the code.] The NHS England data is used under the Open Government Licence v3.0, as above.
+The code is licensed under the [MIT Licence](LICENSE), copyright 2026 Madhusudan Chakravarthy. The NHS England data is used under the Open Government Licence v3.0, as above.
