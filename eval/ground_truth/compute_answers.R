@@ -132,13 +132,27 @@ answers <- list(
 # every answer has the expected shape.
 questions <- yaml::read_yaml(QUESTIONS_PATH)$questions
 ids <- vapply(questions, `[[`, "", "id")
-stopifnot("answers and questions must have the same ids" = identical(sort(names(answers)), sort(ids)))
+unknown <- setdiff(names(answers), ids)
+if (length(unknown)) stop("answers for questions not in questions.yaml: ", toString(unknown))
 
+# Questions whose ground truth isn't written yet (e.g. q21-q30 while they are
+# still being worked out in eval/ground_truth/exercises/) are left out of
+# answers.json, so the eval runner skips them.
+pending <- setdiff(ids, names(answers))
+if (length(pending)) cat("No ground truth yet (skipped):", toString(pending), "\n")
+questions <- Filter(function(q) q$id %in% names(answers), questions)
+
+# A refusal is written list(refusal = TRUE, keywords = c(...)): the keywords
+# are what a reason must mention to explain why the data can't answer.
 expected_length <- function(q) {
   if (q$answer_type == "ranking list") length(answers[[q$id]]) else 1L
 }
 out <- lapply(questions, function(q) {
   value <- answers[[q$id]]
+  if (q$answer_type == "refusal") {
+    if (!isTRUE(value$refusal) || length(value$keywords) == 0) stop(q$id, " needs list(refusal = TRUE, keywords = c(...))")
+    return(list(id = q$id, answer_type = q$answer_type, units = q$units, answer = value))
+  }
   if (length(value) != expected_length(q) || anyNA(value)) {
     stop(q$id, " has an unexpected answer: length ", length(value), ", NA: ", anyNA(value))
   }

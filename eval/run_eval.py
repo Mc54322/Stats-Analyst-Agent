@@ -51,7 +51,7 @@ class AnswerKeyLLM:
 
     def __init__(self, answers_path: Path = ANSWERS_PATH):
         key = json.loads(answers_path.read_text())["answers"]
-        self.by_question = {prompts.question_prompt(q["question"], q["answer_type"], q["units"]): q
+        self.by_question = {prompts.question_prompt(q["question"], agent_answer_type(q), q["units"]): q
                             for q in _load_questions()}
         self.answers = {a["id"]: a for a in key}
 
@@ -80,6 +80,17 @@ def _r_literal(value, answer_type: str) -> str:
 
 def _load_questions() -> list[dict]:
     return yaml.safe_load(QUESTIONS_PATH.read_text())["questions"]
+
+
+def _ground_truth_ids() -> set[str]:
+    return {a["id"] for a in json.loads(ANSWERS_PATH.read_text())["answers"]}
+
+
+def agent_answer_type(q: dict) -> str:
+    """The answer type to ask the agent for. For a question the data can't
+    answer, ask for what the question asks for (asks_for), so the agent isn't
+    told in advance that the right answer is a refusal."""
+    return q.get("asks_for", q["answer_type"]) if q["answer_type"] == "refusal" else q["answer_type"]
 
 
 def grade(results: dict[str, AgentResult]) -> dict[str, dict]:
@@ -155,6 +166,16 @@ def main(argv: list[str] | None = None, runs_dir: Path = DEFAULT_RUNS_DIR) -> in
             return 3
         questions = [q for q in questions if q["id"] in set(args.questions)]
 
+    # Only questions with ground truth can be graded; the rest are skipped.
+    graded_ids = _ground_truth_ids()
+    pending = [q["id"] for q in questions if q["id"] not in graded_ids]
+    if pending:
+        print(f"Skipping {len(pending)} question(s) with no ground truth yet: {', '.join(pending)}")
+    questions = [q for q in questions if q["id"] in graded_ids]
+    if not questions:
+        print("No questions to run.", file=sys.stderr)
+        return 3
+
     llm = AnswerKeyLLM() if args.mock else ClaudeLLM(model=args.model)
     run_dir = runs_dir / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     meta = {
@@ -162,6 +183,7 @@ def main(argv: list[str] | None = None, runs_dir: Path = DEFAULT_RUNS_DIR) -> in
         "model": llm.model,
         "mock": args.mock,
         "questions": [q["id"] for q in questions],
+        "skipped_no_ground_truth": pending,
         "system_prompt": prompts.system_prompt(),
     }
     _write_json(run_dir / "run.json", meta)
@@ -172,7 +194,7 @@ def main(argv: list[str] | None = None, runs_dir: Path = DEFAULT_RUNS_DIR) -> in
         print(f"{q['id']} ...", end=" ", flush=True)
         start = time.monotonic()
         try:
-            result = answer_question(q["question"], q["answer_type"], q["units"], llm=llm)
+            result = answer_question(q["question"], agent_answer_type(q), q["units"], llm=llm)
         except BudgetExceededError as exc:
             stopped_reason = f"spend cap reached before {q['id']}: {exc}"
             print("stopped (spend cap)")

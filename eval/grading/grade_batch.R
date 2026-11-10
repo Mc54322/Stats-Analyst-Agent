@@ -17,7 +17,8 @@ grades <- lapply(items, function(item) {
   if (is.null(item$answer)) {
     return(list(id = item$id, pass = FALSE, detail = "no answer"))
   }
-  answer <- if (is.list(item$answer)) unlist(item$answer) else item$answer
+  # JSON arrays arrive as lists; flatten them, but keep a refusal (refused + reason) as it is.
+  answer <- if (is.list(item$answer) && !isTRUE(item$answer$refused)) unlist(item$answer) else item$answer
   graded <- NULL
   invisible(capture.output(graded <- grade_answer(item$id, answer, key)))
   list(id = item$id, pass = isTRUE(graded$pass), detail = graded$detail)
