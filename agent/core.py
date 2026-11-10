@@ -92,6 +92,9 @@ FREE_ANSWER_EXPORT = """
 # ---- added by the agent runner: export `answer` ----
 if (!exists("answer")) stop("The code must assign the final result to a variable called `answer`.")
 if (is.data.frame(answer) && nrow(answer) > 200) answer <- utils::head(answer, 200)
+# A named vector (c(total = 1, share = 0.5)) would lose its names as a JSON
+# array; as a list it becomes a JSON object, keeping each label with its value.
+if (is.atomic(answer) && !is.null(names(answer)) && all(nzchar(names(answer)))) answer <- as.list(answer)
 jsonlite::write_json(list(answer = answer), "output/answer.json", auto_unbox = TRUE, digits = NA, dataframe = "rows")
 """
 
