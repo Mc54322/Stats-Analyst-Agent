@@ -7,6 +7,62 @@
 **Eval set:** v1, 20 questions (`eval/questions.yaml`), data as of 2026-10-21
 **Runs:** `eval/runs/20261110T152618Z`, `20261110T152750Z`, `20261110T152920Z` (local, gitignored)
 
+## Update: v1.1 stage results (all 30 questions)
+
+The eval was extended to 30 questions (q21–q30, v1.1). The agent was then run in three stages on `claude-haiku-5-5`, 3 runs each, on branch `feat/agent-fixes`:
+
+1. **Baseline:** the agent unchanged.
+2. **+ harness fixes** (`6c99f9d`): both fixes proposed below. The declared answer-type check was dropped, and dplyr, tidyr and arrow are loaded before every script (with a prompt line preferring `|>`).
+3. **+ refusal option** (`633ab9b`): the reply can set `refusal_reason` instead of giving R code, plus one prompt line, "refuse only when the data genuinely can't answer the question".
+
+Produced by `eval/analysis/compare_runs.R`. Outputs are in `docs/results/` (`stage_comparison.csv`, `stage_comparison.png`, `question_results.csv`). Intervals are 95% percentile bootstrap intervals, resampling questions (2,000 resamples).
+
+### All 30 questions
+
+| Measure | Baseline | + harness fixes | + refusal option | Change, baseline → final |
+|---|---|---|---|---|
+| Accuracy | 88.9% (76.7–98.9) | 90.0% (80.0–100) | **100%** | +11.1 pts |
+| Right first time | 86.7% (75.6–96.7) | 88.9% (76.7–98.9) | **100%** | +13.3 pts |
+| Retries per run | 2.67 | 2.00 | **0** | −2.67 |
+| Cost per question | $0.00055 | $0.00050 | **$0.00049** | −$0.00007 |
+| Refusal accuracy (q23–q25) | 0% | 0% | **100%** | +100 pts |
+| False refusals | 0 | 0 | **0** | — |
+
+### Split by question set
+
+| Measure | Set | Baseline | + harness fixes | + refusal option |
+|---|---|---|---|---|
+| Accuracy | q01–q20 | 98.3% (95.0–100) | 100% | 100% |
+| | q21–q30 | 70.0% (40.0–100) | 70.0% (40.0–100) | 100% |
+| Right first time | q01–q20 | 95.0% (90.0–100) | 98.3% (95.0–100) | 100% |
+| | q21–q30 | 70.0% (40.0–100) | 70.0% (40.0–100) | 100% |
+| Retries per run | q01–q20 | 0.67 | 0.33 | 0 |
+| | q21–q30 | 2.00 | 1.67 | 0 |
+| Cost per question | q01–q20 | $0.00045 | $0.00038 | $0.00044 |
+| | q21–q30 | $0.00075 | $0.00073 | $0.00059 |
+
+### What changed at each stage
+
+- **Baseline.**
+  - **Refusal questions:** q23–q25 failed in every run, since the agent couldn't refuse. Its retries there came from setting `answer` to NA, in effect trying to say "can't answer".
+  - **The other new questions:** q21, q22 and q26–q30 passed in every run.
+  - **q04 failed once with a real bug:** the code used `filter(isFALSE(has_ae_activity))`, and `isFALSE()` returns a single FALSE for a whole column, so the filter kept no rows. That's a wrong method; neither harness fix addresses it.
+- **+ harness fixes.**
+  - **Gone:** no answer-type or missing-dplyr retries occurred.
+  - **q01–q20:** reached 100%, with one retry left (a variable-name typo in q18, recovered).
+  - **q21–q30 retries:** the remaining ones were all on q23 and q25, again the agent trying to express a refusal through NA.
+- **+ refusal option.** 90 of 90 answers were correct and right first time, with zero retries.
+  - **q23–q25:** refused correctly in every run (9 of 9).
+  - **False refusals:** none.
+  - **Reasons:** every reason was specific and accurate. For example, for q25: "measures patients waiting more than 12 hours from the decision to admit to admission (trolley waits), not from arrival. The 12-hours-from-arrival figure is in NHS England's separate ECDS supplementary analysis". For q24, the agent also offered the pathway count as an alternative.
+
+### Caveats
+
+- **The eval is saturated again.** At 100% on every run, v1.1 can no longer tell agent versions apart. The next agent change needs harder questions, or a harder model setting, before its effect can be measured.
+- **The intervals at 100% have zero width.** When every question scores 100%, every bootstrap resample does too. This is a limit of the method, not evidence of certainty. With 30 questions, an agent that fails 1 question in 30 would often score 100% on a given set.
+- **The q21–q30 intervals are wide** (40–100%), because there are only 10 questions. Stage differences inside that set rest on q23–q25 alone.
+- **Three runs per stage is a small sample.** The baseline's single q04 failure is the only run-to-run difference in accuracy.
+
 ## Update: new baseline after removing catalogue leaks
 
 Leaked answers were removed from `data/catalogue.yaml` in `e00f53e` (see caveat 2 below). The baseline agent was then rerun 3 times on `claude-haiku-5-5`, with no other changes. **This is the new baseline.**
@@ -121,7 +177,7 @@ Every trap question passed in all three runs. Spot checks of the code show the a
 2. **Some answers are visible in the catalogue.** Expected answers or their inputs appear in `data/catalogue.yaml`, which the agent reads. The genuine leaks are q07 (7,189,213), q13 (65.2%), q08 (74.4%), q09 (both 4-hour percentages, 74.4% and 60.6%) and q14 (144 providers). q04's and q06's small counts also appear, though probably by coincidence. q05's 50,582 trolley waits appear only in `data/notes.md`, which the agent doesn't read. **In these runs the agent didn't use the leaked values.** Every one of the 60 answers was computed by code that reads the parquet files, and none of the code contains an expected value or assigns `answer` a literal. But nothing prevents a model from copying them.
 3. **Three runs is a small sample.** The retry rate (5 of 60 first attempts) is a rough estimate.
 
-## Proposed fixes (not implemented)
+## Proposed fixes (implemented in `6c99f9d`; results in the v1.1 stage update above)
 
 Ranked by expected impact. Accuracy is already 100%, so impact here means fewer wasted retries, lower cost and latency, and less fragility on harder questions.
 
