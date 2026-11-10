@@ -7,6 +7,55 @@
 **Eval set:** v1, 20 questions (`eval/questions.yaml`), data as of 2026-10-21
 **Runs:** `eval/runs/20261110T152618Z`, `20261110T152750Z`, `20261110T152920Z` (local, gitignored)
 
+## Bug fix: isTRUE()/isFALSE() inside filter() (q04)
+
+### The bug
+
+In the v1.1 baseline (run `20261110T155534Z`), q04 returned **0** instead of the correct count. The generated code was:
+
+```r
+answer <- sep26 %>% filter(isFALSE(has_ae_activity)) %>% distinct(org_code) %>% nrow()
+```
+
+`isFALSE()` (and `isTRUE()`) return a **single** TRUE or FALSE for the whole column, not one value per row. So `filter()` keeps every row or none. The code runs without error, and the answer is silently wrong. The harness fixes and the refusal option don't address it, because nothing fails.
+
+### The fix (`ff345e2`)
+
+- **Pre-run check** in `agent/core.py` (`scalar_tests_in_filter()`). It scans the code for `filter(...)` and `dplyr::filter(...)` calls, matching parentheses and skipping strings and comments. If any call uses `isTRUE()` or `isFALSE()`, the code isn't run. It goes back as a retry, explaining that these return one value for the whole column and to use the column directly, `!column`, or `column == FALSE` instead.
+- **One line in the system prompt** saying the same.
+- **Tests** (`tests/agent/test_code_checks.py`, 14 cases):
+  - **Caught:** `filter(isFALSE(x))`, `dplyr::filter(...)`, multi-line calls and `!isTRUE(x)`.
+  - **Allowed:** `filter(!x)`, `filter(x == FALSE)`, `filter(x)`, `isTRUE()` outside `filter()`, the pattern inside a string or comment, and functions merely named like filter.
+  - **Agent level:** flagged code is sent back and never run.
+
+### Before and after
+
+| | Runs | q04 wrong | Pattern used | Check fired |
+|---|---|---|---|---|
+| Before the fix: q04 alone | 10 | 0 | 0 | — |
+| After the fix: q04 alone | 10 | 0 | 0 | 0 |
+| After the fix: q04 in the 3 full runs | 3 | 0 | 0 | 0 |
+
+**The bug is too rare for 10 runs to measure.** Before the fix, q04 failed 0 times in 10. Across every live run so far, 26 q04 attempts and 420 code attempts in all, the pattern appeared **exactly once** (the baseline failure above). Ten runs either side of the fix can't show a difference at that rate. The evidence that the fix works is instead:
+
+1. **The tests:** the pattern is caught, correct code is allowed, and flagged code is never run.
+2. **A replay over every earlier run:** across all 411 code attempts already on disk, the check flags exactly the one buggy attempt and nothing else (no false positives).
+
+### Full eval after the fix (all 30 questions, 3 runs)
+
+Runs `20261110T163126Z`, `20261110T163333Z` and `20261110T163535Z`, label `isfalse-check`.
+
+| Measure | + refusal option (before) | + isFALSE check (after) | Change |
+|---|---|---|---|
+| Accuracy | 100% | 100% | 0 |
+| Right first time | 100% | 100% | 0 |
+| Retries per run | 0 | 0 | 0 |
+| Refusal accuracy (q23–q25) | 100% | 100% | 0 |
+| False refusals | 0 | 0 | 0 |
+| Cost per question | $0.00049 | $0.00045 | −$0.00004 |
+
+Nothing else changed. The check didn't fire on any question, so it added no retries or cost.
+
 ## Update: v1.1 stage results (all 30 questions)
 
 The eval was extended to 30 questions (q21–q30, v1.1). The agent was then run in three stages on `claude-haiku-5-5`, 3 runs each, on branch `feat/agent-fixes`:
