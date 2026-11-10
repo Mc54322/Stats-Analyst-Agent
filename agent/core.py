@@ -29,6 +29,12 @@ MAX_RETRIES = 1
 AGENT_MAX_TOKENS = 8000  # room for adaptive thinking plus the JSON reply
 STDERR_FEEDBACK_CHARS = 2000
 
+# Put before the model's code so the core packages are always attached.
+PACKAGE_PRELUDE = """# ---- added by the agent runner: core packages ----
+suppressPackageStartupMessages({ library(dplyr); library(tidyr); library(arrow) })
+
+"""
+
 # Appended to the model's code so the answer comes back as JSON, whatever it is.
 ANSWER_EXPORT = """
 
@@ -187,10 +193,9 @@ def _run_attempt(attempt: Attempt, text: str, answer_type: str, timeout_s: int, 
     attempt.reply = reply.model_dump()
     result.plan, result.datasets, result.code = reply.plan, list(reply.datasets), reply.r_code
 
-    if reply.answer_type != answer_type:
-        return f'The question needs answer_type "{answer_type}", but your reply says "{reply.answer_type}".'
-
-    run = run_r_script(reply.r_code + ANSWER_EXPORT, timeout_s=timeout_s)
+    # The declared answer_type is informational only: coerce_answer() below
+    # checks the value R actually produced against the type the question needs.
+    run = run_r_script(PACKAGE_PRELUDE + reply.r_code + ANSWER_EXPORT, timeout_s=timeout_s)
     attempt.stdout, attempt.stderr = run.stdout, run.stderr
     attempt.exit_code, attempt.timed_out = run.exit_code, run.timed_out
     result.stdout, result.stderr = run.stdout, run.stderr
