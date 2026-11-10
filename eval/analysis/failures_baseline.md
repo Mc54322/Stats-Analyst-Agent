@@ -108,7 +108,7 @@ Produced by `eval/analysis/compare_runs.R`. Outputs are in `docs/results/` (`sta
 ### Caveats
 
 - **The eval is saturated again.** At 100% on every run, v1.1 can no longer tell agent versions apart. The next agent change needs harder questions, or a harder model setting, before its effect can be measured.
-- **The intervals at 100% have zero width.** When every question scores 100%, every bootstrap resample does too. This is a limit of the method, not evidence of certainty. With 30 questions, an agent that fails 1 question in 30 would often score 100% on a given set.
+- **The intervals at 100% have zero width.** When every question scores 100%, every bootstrap resample does too. This is a limit of the method, not evidence of certainty. An agent that gets about 1 question in 30 wrong on average would still score 30 out of 30 about a third of the time.
 - **The q21–q30 intervals are wide** (40–100%), because there are only 10 questions. Stage differences inside that set rest on q23–q25 alone.
 - **Three runs per stage is a small sample.** The baseline's single q04 failure is the only run-to-run difference in accuracy.
 

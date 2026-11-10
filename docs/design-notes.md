@@ -33,11 +33,11 @@ About a third of the questions are traps: falling for a known gotcha (summing C_
 
 ### Removing answer leaks from the catalogue
 
-The first catalogue quoted exact figures in its gotchas: the national total, the 4-hour and 18-week percentages, and provider counts. Some of these were eval answers, or gave them away. They were replaced with descriptions ("about 31k higher than published"), and both the catalogue and the prompt are scanned for every expected answer. The agent never copied the values, but an eval whose answers are in the prompt can't distinguish computing from copying. *Not taken:* leaving the figures in because they made the gotchas concrete.
+The first catalogue quoted exact figures in its gotchas: the national total, the 4-hour and 18-week percentages, and provider counts. Some of these were eval answers, or gave them away. They were replaced with descriptions ("about 31k higher than published"), and the catalogue and prompt were scanned once for every expected answer (a one-off check, not an automated test). The agent never copied the values, but an eval whose answers are in the prompt can't distinguish computing from copying. *Not taken:* leaving the figures in because they made the gotchas concrete.
 
 ### Not telling the agent which questions it should refuse
 
-Questions the data can't answer (q23–q25) have answer type `refusal`. The agent is given only `asks_for` and `asks_for_units`, which describe what the question asks for, such as a number of patients. A first version passed the question's `units`, which described the expected refusal and so told the agent to refuse. A test now checks that no refusal prompt mentions refusing. *Not taken:* labelling these questions as refusals in the prompt. That would test instruction-following, not the agent's judgement.
+Questions the data can't answer (q23 to q25) have answer type `refusal`. The agent is given only `asks_for` and `asks_for_units`, which describe what the question asks for, such as a number of patients. A first version passed the question's `units`, which described the expected refusal and so told the agent to refuse. A test now checks that no refusal prompt mentions refusing. *Not taken:* labelling these questions as refusals in the prompt. That would test instruction-following, not the agent's judgement.
 
 ## Agent
 
