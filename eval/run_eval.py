@@ -11,7 +11,9 @@ Each run is saved to eval/runs/<timestamp>/:
 
 --mock replaces the model with a fake that writes code returning the expected
 answer. It tests the plumbing (prompting, sandbox, answer export, grading,
-run folder), not the agent's ability, and costs nothing.
+run folder), not the agent's ability, and costs nothing. The agent has no way
+to refuse yet, so on refusal questions (q23-q25) the mock answers like the
+agent would and is graded FAIL: a full mock run scores 27/30.
 
 Exit codes: 0 finished, 2 stopped by the spend cap, 3 setup problem.
 """
@@ -45,27 +47,35 @@ DEFAULT_RUNS_DIR = PROJECT_ROOT / "eval" / "runs"
 
 class AnswerKeyLLM:
     """Fake model for --mock: replies with valid JSON whose R code assigns the
-    expected answer. Exercises everything except the model itself."""
+    expected answer. Exercises everything except the model itself.
+
+    For a refusal question there is no value to assign and the agent can't
+    refuse, so it returns a placeholder of the requested type (graded FAIL)."""
 
     model = "mock"
 
     def __init__(self, answers_path: Path = ANSWERS_PATH):
         key = json.loads(answers_path.read_text())["answers"]
-        self.by_question = {prompts.question_prompt(q["question"], agent_answer_type(q), q["units"]): q
+        self.by_question = {prompts.question_prompt(q["question"], agent_answer_type(q), agent_units(q)): q
                             for q in _load_questions()}
         self.answers = {a["id"]: a for a in key}
 
     def generate(self, system: str, messages: list[dict]) -> LLMTurn:
         q = self.by_question[messages[0]["content"]]
         a = self.answers[q["id"]]
+        answer_type = agent_answer_type(q)
+        value = PLACEHOLDER_FOR_TYPE[answer_type] if a["answer_type"] == "refusal" else _r_literal(a["answer"], answer_type)
         reply = {
             "plan": f"Mock reply for {q['id']}: return the expected answer.",
             "datasets": list(q["datasets"]),
-            "r_code": f"answer <- {_r_literal(a['answer'], a['answer_type'])}\ncat('answer set\\n')",
-            "answer_type": a["answer_type"],
+            "r_code": f"answer <- {value}\ncat('answer set\\n')",
+            "answer_type": answer_type,
         }
         text = json.dumps(reply)
         return LLMTurn(text=text, content=[{"type": "text", "text": text}])
+
+
+PLACEHOLDER_FOR_TYPE = {"number": "0", "count": "0", "yes/no": "FALSE", "ranking list": 'c("NONE")'}
 
 
 def _r_literal(value, answer_type: str) -> str:
@@ -91,6 +101,12 @@ def agent_answer_type(q: dict) -> str:
     answer, ask for what the question asks for (asks_for), so the agent isn't
     told in advance that the right answer is a refusal."""
     return q.get("asks_for", q["answer_type"]) if q["answer_type"] == "refusal" else q["answer_type"]
+
+
+def agent_units(q: dict) -> str | None:
+    """Units to give the agent. A refusal question's `units` describe the
+    refusal, so the agent gets `asks_for_units` instead."""
+    return q.get("asks_for_units") if q["answer_type"] == "refusal" else q["units"]
 
 
 def grade(results: dict[str, AgentResult]) -> dict[str, dict]:
@@ -194,7 +210,7 @@ def main(argv: list[str] | None = None, runs_dir: Path = DEFAULT_RUNS_DIR) -> in
         print(f"{q['id']} ...", end=" ", flush=True)
         start = time.monotonic()
         try:
-            result = answer_question(q["question"], agent_answer_type(q), q["units"], llm=llm)
+            result = answer_question(q["question"], agent_answer_type(q), agent_units(q), llm=llm)
         except BudgetExceededError as exc:
             stopped_reason = f"spend cap reached before {q['id']}: {exc}"
             print("stopped (spend cap)")

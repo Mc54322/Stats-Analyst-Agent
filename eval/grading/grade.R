@@ -40,7 +40,8 @@ grade_refusal <- function(answer, want) {
   }
   reason <- paste(answer$reason, collapse = " ")
   keywords <- unlist(want$keywords)
-  explains <- any(vapply(keywords, function(k) grepl(k, reason, ignore.case = TRUE, fixed = TRUE), logical(1)))
+  # Case-insensitive literal match (grepl ignores ignore.case when fixed = TRUE).
+  explains <- any(vapply(tolower(keywords), grepl, logical(1), x = tolower(reason), fixed = TRUE))
   if (nchar(reason) < MIN_REASON_CHARS || !explains) {
     return(list(pass = FALSE, detail = "refused, but the reason doesn't say why the data can't answer it"))
   }

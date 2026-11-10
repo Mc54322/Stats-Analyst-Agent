@@ -10,6 +10,8 @@
 #   - RTT provider and national totals use only the C_999 rows.
 #   - Percentages are ratios of sums, expressed as percent (65.2 = 65.2%).
 #   - "NHS trust" = a 3-character ODS code starting with R or T.
+#   - Questions the data can't answer expect a refusal: refusal_key() records
+#     the keywords a reason must mention, after proving the data lacks the answer.
 
 suppressPackageStartupMessages({
   library(dplyr)
@@ -42,6 +44,23 @@ top_n_strict <- function(df, value, n, code_col, decreasing = TRUE) {
   }
   head(df[[code_col]], n)
 }
+
+# Expected answer for a question the data can't answer. `proof` must be TRUE,
+# i.e. the data really lacks what the question needs; `keywords` are terms a
+# refusal's reason must mention to explain why (any one is enough).
+refusal_key <- function(proof, keywords) {
+  if (!isTRUE(proof)) stop("Refusal proof failed: the data may be able to answer this question.")
+  list(refusal = TRUE, keywords = keywords)
+}
+
+# Total incomplete pathways for a set of providers in one month (C_999 rows).
+pathways_of <- function(codes, m) sum(c999_month(m) |> filter(provider_org_code %in% codes) |> pull(total_incomplete))
+
+# Providers with a C_999 row in every month of the RTT table.
+providers_every_month <- c999 |>
+  count(provider_org_code) |>
+  filter(n == n_distinct(c999$period)) |>
+  pull(provider_org_code)
 
 answers <- list(
   # q01: attendances_total for RTH, Sep 2026
@@ -125,7 +144,88 @@ answers <- list(
   q20 = c999_month("2026-08") |>
     filter(is_nhs_trust(provider_org_code), total_incomplete >= 10000) |>
     mutate(pct_18 = within_18_weeks / known_clock_start) |>
-    top_n_strict("pct_18", 5, "provider_org_code", decreasing = FALSE)
+    top_n_strict("pct_18", 5, "provider_org_code", decreasing = FALSE),
+
+  # --- v1.1 ---
+
+  # q21: top 3 ICBs by incomplete pathways, built from provider C_999 rows, Aug 2026
+  q21 = c999_month("2026-08") |>
+    group_by(provider_parent_org_code) |>
+    summarise(pathways = sum(total_incomplete), .groups = "drop") |>
+    top_n_strict("pathways", 3, "provider_parent_org_code"),
+
+  # q22: all 7 regions by all-types 4-hour performance, Sep 2026, lowest first
+  q22 = local({
+    regions <- ae_month("2026-09") |>
+      group_by(parent_org) |>
+      summarise(pct = 100 - pct_of(over_4hrs_total, attendances_total), .groups = "drop")
+    stopifnot("q22 expects 7 regions" = nrow(regions) == 7, "q22 has tied regions" = !anyDuplicated(regions$pct))
+    regions$parent_org[order(regions$pct)]
+  }),
+
+  # q23: refusal. The A&E table has no December 2026.
+  q23 = refusal_key(
+    proof = !any(ae$period == month("2026-12")),
+    keywords = c("September 2026", "Sep 2026", "2026-09", "not in the data", "not available", "no data",
+                 "only covers", "only goes", "latest", "ends", "beyond", "outside")
+  ),
+
+  # q24: refusal. RTT counts pathways; no column counts unique patients.
+  q24 = refusal_key(
+    proof = !any(grepl("patient", names(rtt), ignore.case = TRUE)),
+    keywords = c("pathway")
+  ),
+
+  # q25: refusal. The only 12-hour columns are measured from the decision to admit.
+  q25 = refusal_key(
+    proof = all(startsWith(grep("12", names(ae), value = TRUE), "dta")),
+    keywords = c("decision to admit", "decision-to-admit", "DTA", "ECDS", "trolley")
+  ),
+
+  # q26: NHS trusts in both tables, Aug 2026, with > 70,000 pathways and Type 1 4-hour < 60%
+  q26 = local({
+    rtt_trusts <- c999_month("2026-08") |>
+      filter(is_nhs_trust(provider_org_code)) |>
+      select(org_code = provider_org_code, pathways = total_incomplete)
+    ae_type1 <- ae_month("2026-08") |>
+      filter(attendances_type1_all > 0) |>
+      mutate(pct_type1 = 100 * (1 - over_4hrs_type1_all / attendances_type1_all)) |>
+      select(org_code, pct_type1)
+    both <- inner_join(rtt_trusts, ae_type1, by = "org_code")
+    stopifnot("q26 has a trust exactly on a threshold" = !any(both$pathways == 70000 | both$pct_type1 == 60))
+    sum(both$pathways > 70000 & both$pct_type1 < 60)
+  }),
+
+  # q27: RAL Aug 2026 minus (RAL + RAP) Oct 2024, like for like across the merger
+  q27 = pathways_of("RAL", "2026-08") - pathways_of(c("RAL", "RAP"), "2024-10"),
+
+  # q28: change Sep 2024 -> Aug 2026, providers with a C_999 row in every month
+  q28 = pathways_of(providers_every_month, "2026-08") - pathways_of(providers_every_month, "2024-09"),
+
+  # q29: like-for-like month-to-month falls (providers present in both months)
+  q29 = local({
+    months <- sort(unique(c999$period))
+    falls <- vapply(2:length(months), function(i) {
+      prev <- filter(c999, period == months[i - 1])
+      curr <- filter(c999, period == months[i])
+      both <- intersect(prev$provider_org_code, curr$provider_org_code)
+      sum(curr$total_incomplete[curr$provider_org_code %in% both]) <
+        sum(prev$total_incomplete[prev$provider_org_code %in% both])
+    }, logical(1))
+    sum(falls)
+  }),
+
+  # q30: 3 NHS trusts (every month, no mergers) with the largest % fall, Sep 2024 -> Aug 2026
+  q30 = local({
+    merger_trusts <- c("RA7", "RVJ", "RAL", "RAP")
+    keep <- function(df) filter(df, provider_org_code %in% providers_every_month,
+                                is_nhs_trust(provider_org_code), !provider_org_code %in% merger_trusts)
+    sep24 <- keep(c999_month("2024-09")) |> select(code = provider_org_code, sep24 = total_incomplete)
+    aug26 <- keep(c999_month("2026-08")) |> select(code = provider_org_code, aug26 = total_incomplete)
+    inner_join(sep24, aug26, by = "code") |>
+      mutate(pct_change = (aug26 - sep24) / sep24) |>
+      top_n_strict("pct_change", 3, "code", decreasing = FALSE)
+  })
 )
 
 # Attach each question's answer type and units from questions.yaml, and check
@@ -135,9 +235,8 @@ ids <- vapply(questions, `[[`, "", "id")
 unknown <- setdiff(names(answers), ids)
 if (length(unknown)) stop("answers for questions not in questions.yaml: ", toString(unknown))
 
-# Questions whose ground truth isn't written yet (e.g. q21-q30 while they are
-# still being worked out in eval/ground_truth/exercises/) are left out of
-# answers.json, so the eval runner skips them.
+# A question with no entry above has no ground truth yet: it is left out of
+# answers.json, and the eval runner skips it.
 pending <- setdiff(ids, names(answers))
 if (length(pending)) cat("No ground truth yet (skipped):", toString(pending), "\n")
 questions <- Filter(function(q) q$id %in% names(answers), questions)

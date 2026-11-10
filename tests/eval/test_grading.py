@@ -17,6 +17,7 @@ key <- list(
 )
 cases <- list(
   good   = list("r1", refusal("The data counts RTT pathways, not unique patients.")),
+  other_case = list("r1", refusal("Twelve-hour waits here start at the Decision To Admit.")),
   vague  = list("r1", refusal("Sorry, I can't answer that one.")),
   short  = list("r1", refusal("pathways")),
   number = list("r1", 12345),
@@ -37,6 +38,10 @@ def results():
 
 def test_refusal_with_a_reason_passes(results):
     assert results["good"] is True
+
+
+def test_refusal_keywords_ignore_case(results):
+    assert results["other_case"] is True
 
 
 def test_refusal_without_saying_why_fails(results):

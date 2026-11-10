@@ -86,8 +86,22 @@ def test_full_mock_run_over_all_questions_writes_the_run_folder(run_eval, tmp_pa
     (run_dir,) = runs.iterdir()
     meta = json.loads((run_dir / "run.json").read_text())
     files = sorted(p.name for p in (run_dir / "questions").iterdir())
-    assert files == [f"q{i:02d}.json" for i in range(1, 21)]
+    assert files == [f"q{i:02d}.json" for i in range(1, 31)]
     assert meta["model"] == "mock" and meta["system_prompt"]
-    assert meta["summary"]["passed"] == 20 and meta["summary"]["total_cost_usd"] == 0
+    assert meta["skipped_no_ground_truth"] == []
+    assert meta["summary"]["total_cost_usd"] == 0
     record = json.loads((run_dir / "questions" / "q15.json").read_text())
     assert record["grade"]["pass"] is True and record["code"] and record["messages"]
+
+    # Every question passes except the refusal questions: the agent can't refuse yet.
+    grades = {f.stem: json.loads(f.read_text())["grade"] for f in (run_dir / "questions").iterdir()}
+    failed = sorted(qid for qid, g in grades.items() if not g["pass"])
+    assert failed == ["q23", "q24", "q25"]
+    assert all("expected refusal" in grades[q]["detail"] for q in failed)
+    assert meta["summary"]["passed"] == 27
+
+    # The agent was asked for what the question asks for, never told to refuse.
+    for qid in failed:
+        record = json.loads((run_dir / "questions" / f"{qid}.json").read_text())
+        assert record["answer_type"] == "number"
+        assert "refus" not in record["messages"][0]["content"].lower()
