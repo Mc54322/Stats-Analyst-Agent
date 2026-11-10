@@ -23,19 +23,19 @@ tables:
         to TRUE for totals or FALSE for specialties. Never sum both (that doubles the count).
       - Counts are pathways, not patients. Say "pathways", not "people".
       - Includes NONC (non-English commissioners), which NHS England excludes from all published
-        figures. Totals are about 31k higher than published (Aug 2026, 7,189,213 vs 7,158,164).
+        figures. National totals here are about 31k higher than the published figure.
       - National totals are "reported", not NHS England's headline "with estimates"
-        (published Aug 2026 with estimates is 7,370,100). Non-submitting trusts are simply missing.
+        (which adds estimates for trusts that didn't submit). Non-submitting trusts are simply missing.
         Sheffield (RHQ) is missing from Jul 2025 onwards and Barking, Havering & Redbridge (RF4)
-        in Nov 2025. The Mar 2026 drop (-110,702) is NOT a missing submission; it is a real fall.
+        in Nov 2025. The large drop in Mar 2026 is NOT a missing submission; it is a real fall.
       - Mergers break provider time series. RVJ merged into RA7 from Jul 2026; RAP merged into
         RAL from Jan 2025.
-      - Provider count grows over time (457 to 532 a month), mostly independent sector. NHS
-        trusts fell from 155 to 145. Non-trusts are 73% of providers but 6.6% of the waiting list.
+      - Provider count grows over time (by several dozen a month), mostly independent sector. NHS
+        trusts fell through mergers. Non-trusts are most providers but a small share of the waiting list.
         Limit rankings to NHS trusts unless asked otherwise.
       - Percentages are ratios of sums. Never mean() the pct_* column.
       - Group by code, not name (18 provider codes change name).
-      - Joining to A&E loses providers (only 136 of 191 A&E codes appear in RTT). Use left_join
+      - Joining to A&E loses providers (only about two-thirds of A&E codes appear in RTT). Use left_join
         and report what didn't match.
 
     columns:
@@ -55,8 +55,8 @@ tables:
           per provider in each month, whoever commissions the pathway. NHS England guidance doesn't
           define this column; the location reading is inferred from the data (12 of 12 providers
           with a place in their name sit in the ICB that covers that place). The code can change
-          for the same provider over time. 144 of 563 providers have more than one parent code
-          across the period. 142 of the changes happen in Apr 2026 with the ICB mergers, plus RXK
+          for the same provider over time. Over 100 providers have more than one parent code
+          across the period. Almost all of the changes happen in Apr 2026 with the ICB mergers, plus RXK
           (QHL to QUA, Aug 2025) and NEY (QF7 to QRL in Jul 2025, back to QF7 in Jul 2026).
         units: code
         examples: [QR1, QRL, QE1]
@@ -92,7 +92,7 @@ tables:
             (grepl("^[RT][A-Z0-9]{2}$", code)). Longer codes, including ones starting with
             R or T, are independent-sector or other sites.
           - Mergers break time series (RVJ into RA7 from Jul 2026; RAP into RAL from Jan 2025).
-          - Joins to A&E org_code. Only 136 of 191 A&E codes match; use left_join.
+          - Joins to A&E org_code. Only about two-thirds of A&E codes match; use left_join.
 
       - name: provider_org_name
         type: string
@@ -110,7 +110,7 @@ tables:
         meaning: Specialty code. Includes 18 named specialties (C_100 ... C_502), five "Other"
           groups (X02-X06) and C_999 (the all-specialty total).
         units: code
-        examples: [C_110, X02, C_999]
+        examples: [C_100, X05, C_999]
         gotchas:
           - C_999 is the total. Never sum it together with the specialty rows.
           - X02-X06 are real specialty groups, not subtotals, and hold 22% of pathways. A specialty
@@ -120,7 +120,7 @@ tables:
         type: string
         meaning: Specialty name for treatment_function_code.
         units: text
-        examples: [Trauma and Orthopaedic Service, Other - Medical Services, Total]
+        examples: [General Surgery Service, Other - Surgical Services, Total]
         gotchas:
           - The name "Total" is C_999. Rows named "Other - ..." are real specialty groups, not subtotals.
 
@@ -208,7 +208,7 @@ tables:
         units: pathways
         examples: [1, 1, 8]
         gotchas:
-          - Most affected by NONC (Aug 2026, 544 here vs 220 published).
+          - Most affected by NONC (the national figure here is more than double the published one).
 
       - name: n_commissioner_rows
         type: integer
@@ -224,7 +224,7 @@ tables:
         examples: [0.4914, 0.7089, 0.9746]
         gotchas:
           - Never mean() this column. Recalculate as sum(within_18_weeks) / sum(known_clock_start)
-            (Aug 2026, 65.2% right vs 77.2% wrong).
+            (averaging the column gives a national figure about 12 points too high).
 
   - name: ae_provider
     file: data/clean/ae_provider.parquet
@@ -245,7 +245,7 @@ tables:
         hospitals, filter attendances_type1_all > 0.
       - Percentages are ratios of sums. Never mean() the pct_* columns.
       - Group by code, not name (11 org codes change name).
-      - Joining to RTT loses providers (only 136 of 191 codes appear in RTT). Use left_join.
+      - Joining to RTT loses providers (only about two-thirds of codes appear in RTT). Use left_join.
 
     columns:
       - name: period
@@ -266,7 +266,7 @@ tables:
           - Group by code, not name.
           - An NHS trust has a 3-character code starting with R or T. Longer codes are
             independent-sector or other sites.
-          - Joins to RTT provider_org_code. Only 136 of 191 codes match; use left_join.
+          - Joins to RTT provider_org_code. Only about two-thirds of codes match; use left_join.
 
       - name: parent_org
         type: string
@@ -444,8 +444,9 @@ tables:
         units: proportion (0-1)
         examples: [0.6381, 0.7738, 1.0]
         gotchas:
-          - Headline measure (all types, incl. booked), 74.4% in Sep 2026. Say which measure you're quoting.
-          - Never mean() this column. Recalculate as a ratio of sums (80.6% wrong vs 74.4% right).
+          - Headline measure (all types, incl. booked). Say which measure you're quoting.
+          - Never mean() this column. Recalculate as a ratio of sums (averaging gives a national figure
+            several points too high).
           - NA where has_ae_activity is FALSE.
 
       - name: attendances_type1_all
@@ -470,7 +471,8 @@ tables:
         units: proportion (0-1)
         examples: [0.4729, 0.5958, 0.7329]
         gotchas:
-          - Major A&E only, 60.6% in Sep 2026. It's a different measure from pct_within_4hrs.
+          - Major A&E only, and well below the headline figure. It's a different measure from
+            pct_within_4hrs.
           - Never mean() this column. Recalculate as a ratio of sums.
 
       - name: emergency_admissions_via_ae

@@ -124,6 +124,75 @@
       "answer_type": "ranking list",
       "units": "provider codes, lowest first",
       "answer": ["RAJ", "RYR", "RL1", "RVV", "RWA"]
+    },
+    {
+      "id": "q21",
+      "answer_type": "ranking list",
+      "units": "ICB codes, highest first",
+      "answer": ["Z9B2Z", "QOP", "S9B9J"]
+    },
+    {
+      "id": "q22",
+      "answer_type": "ranking list",
+      "units": "region names, lowest first",
+      "answer": ["NHS ENGLAND SOUTH WEST", "NHS ENGLAND NORTH WEST", "NHS ENGLAND MIDLANDS", "NHS ENGLAND EAST OF ENGLAND", "NHS ENGLAND NORTH EAST AND YORKSHIRE", "NHS ENGLAND SOUTH EAST", "NHS ENGLAND LONDON"]
+    },
+    {
+      "id": "q23",
+      "answer_type": "refusal",
+      "units": "refusal saying which months the data covers",
+      "answer": {
+        "refusal": true,
+        "keywords": ["September 2026", "Sep 2026", "2026-09", "not in the data", "not available", "no data", "only covers", "only goes", "latest", "ends", "beyond", "outside"]
+      }
+    },
+    {
+      "id": "q24",
+      "answer_type": "refusal",
+      "units": "refusal explaining the data counts pathways, not patients",
+      "answer": {
+        "refusal": true,
+        "keywords": "pathway"
+      }
+    },
+    {
+      "id": "q25",
+      "answer_type": "refusal",
+      "units": "refusal explaining the 12-hour column is measured from the decision to admit",
+      "answer": {
+        "refusal": true,
+        "keywords": ["decision to admit", "decision-to-admit", "DTA", "ECDS", "trolley"]
+      }
+    },
+    {
+      "id": "q26",
+      "answer_type": "count",
+      "units": "trusts",
+      "answer": 15
+    },
+    {
+      "id": "q27",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": -1307
+    },
+    {
+      "id": "q28",
+      "answer_type": "number",
+      "units": "pathways",
+      "answer": -150657
+    },
+    {
+      "id": "q29",
+      "answer_type": "count",
+      "units": "months",
+      "answer": 14
+    },
+    {
+      "id": "q30",
+      "answer_type": "ranking list",
+      "units": "provider codes, largest fall first",
+      "answer": ["RPG", "RT1", "RP7"]
     }
   ]
 }
