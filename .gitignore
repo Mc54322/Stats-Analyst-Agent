@@ -46,6 +46,7 @@ scratch/
 .sandbox-runs/
 .spend/
 eval/runs/
+asked/
 *.log
 
 # Editors / OS

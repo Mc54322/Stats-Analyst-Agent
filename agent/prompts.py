@@ -60,6 +60,17 @@ def question_prompt(question: str, answer_type: str, units: str | None) -> str:
     )
 
 
+def free_question_prompt(question: str) -> str:
+    """For a user's own question, which has no fixed answer type."""
+    return (
+        f"Question: {question}\n\n"
+        "There is no fixed answer type. Set `answer` to whatever answers the question best: "
+        "a single number, a character vector, TRUE/FALSE, or a small data frame (at most 50 rows). "
+        "Set answer_type to the closest type. If a chart would help, also save it as a PNG with "
+        'ggplot2::ggsave("output/<name>.png").'
+    )
+
+
 def retry_prompt(problem: str) -> str:
     return (
         f"That attempt failed:\n\n{problem}\n\n"

@@ -85,6 +85,16 @@ def scalar_tests_in_filter(code: str) -> list[str]:
             if re.search(r"\bis(?:TRUE|FALSE)\s*\(", _strip_strings_and_comments(call))]
 
 
+# Export for free-form questions (no fixed answer type): tables are allowed and
+# written as a list of rows, capped so a huge table can't flood the output.
+FREE_ANSWER_EXPORT = """
+
+# ---- added by the agent runner: export `answer` ----
+if (!exists("answer")) stop("The code must assign the final result to a variable called `answer`.")
+if (is.data.frame(answer) && nrow(answer) > 200) answer <- utils::head(answer, 200)
+jsonlite::write_json(list(answer = answer), "output/answer.json", auto_unbox = TRUE, digits = NA, dataframe = "rows")
+"""
+
 # Put before the model's code so the core packages are always attached.
 PACKAGE_PRELUDE = """# ---- added by the agent runner: core packages ----
 suppressPackageStartupMessages({ library(dplyr); library(tidyr); library(arrow) })
@@ -183,6 +193,7 @@ class AgentResult:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
+    plots: list[str] = field(default_factory=list)   # charts the code saved to output/
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -201,7 +212,7 @@ def _jsonable_message(message: dict) -> dict:
 
 def answer_question(
     question: str,
-    answer_type: str,
+    answer_type: str | None,
     units: str | None = None,
     *,
     llm: LLM | None = None,
@@ -209,11 +220,16 @@ def answer_question(
     timeout_s: int = 30,
 ) -> AgentResult:
     """Answer one question. Returns the answer, the code, the R output, the
-    number of retries used, tokens and cost."""
+    number of retries used, tokens and cost.
+
+    answer_type=None is free-form mode, for a user's own question: the answer
+    can be any value or a small table, and isn't checked against a type."""
     llm = llm or ClaudeLLM()
     system = prompts.system_prompt()
-    messages: list[dict] = [{"role": "user", "content": prompts.question_prompt(question, answer_type, units)}]
-    result = AgentResult(question=question, answer_type=answer_type, model=llm.model, messages=messages)
+    prompt = (prompts.free_question_prompt(question) if answer_type is None
+              else prompts.question_prompt(question, answer_type, units))
+    messages: list[dict] = [{"role": "user", "content": prompt}]
+    result = AgentResult(question=question, answer_type=answer_type or "free", model=llm.model, messages=messages)
 
     for attempt_no in range(max_retries + 1):
         turn = llm.generate(system, messages)
@@ -239,7 +255,7 @@ def answer_question(
     return result
 
 
-def _run_attempt(attempt: Attempt, text: str, answer_type: str, timeout_s: int, result: AgentResult) -> str | None:
+def _run_attempt(attempt: Attempt, text: str, answer_type: str | None, timeout_s: int, result: AgentResult) -> str | None:
     """Validate the reply, run its code and read back `answer`. Returns the
     problem to report to the model, or None on success."""
     try:
@@ -263,10 +279,12 @@ def _run_attempt(attempt: Attempt, text: str, answer_type: str, timeout_s: int, 
 
     # The declared answer_type is informational only: coerce_answer() below
     # checks the value R actually produced against the type the question needs.
-    run = run_r_script(PACKAGE_PRELUDE + reply.r_code + ANSWER_EXPORT, timeout_s=timeout_s)
+    export = FREE_ANSWER_EXPORT if answer_type is None else ANSWER_EXPORT
+    run = run_r_script(PACKAGE_PRELUDE + reply.r_code + export, timeout_s=timeout_s)
     attempt.stdout, attempt.stderr = run.stdout, run.stderr
     attempt.exit_code, attempt.timed_out = run.exit_code, run.timed_out
     result.stdout, result.stderr = run.stdout, run.stderr
+    result.plots = [str(p) for p in run.plots]
 
     if run.timed_out:
         return f"The R code was stopped after {timeout_s} seconds. Make it faster."
@@ -279,6 +297,11 @@ def _run_attempt(attempt: Attempt, text: str, answer_type: str, timeout_s: int, 
     if not answer_file.exists():
         return "The R code finished but `answer` was not exported."
     attempt.raw_answer = json.loads(answer_file.read_text()).get("answer")
+    if answer_type is None:   # free-form: any value or small table, but not empty
+        if attempt.raw_answer in (None, [], {}, ""):
+            return "`answer` is empty. Assign the result that answers the question."
+        result.answer = attempt.raw_answer
+        return None
     try:
         result.answer = coerce_answer(attempt.raw_answer, answer_type)
     except AnswerFormatError as exc:
