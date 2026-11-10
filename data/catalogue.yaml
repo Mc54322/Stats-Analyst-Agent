@@ -23,7 +23,8 @@ tables:
         to TRUE for totals or FALSE for specialties. Never sum both (that doubles the count).
       - Counts are pathways, not patients. Say "pathways", not "people".
       - Includes NONC (non-English commissioners), which NHS England excludes from all published
-        figures. National totals here are about 31k higher than the published figure.
+        figures. National totals here are about 31k above NHS England's published reported
+        total, and below its published headline, which adds estimates for non-submitting trusts.
       - National totals are "reported", not NHS England's headline "with estimates"
         (which adds estimates for trusts that didn't submit). Non-submitting trusts are simply missing.
         Sheffield (RHQ) is missing from Jul 2025 onwards and Barking, Havering & Redbridge (RF4)
@@ -140,7 +141,8 @@ tables:
         examples: [25, 933, 6384]
         gotchas:
           - Pathways, not patients.
-          - Includes NONC pathways, which published figures exclude (about 31k nationally).
+          - Includes NONC pathways, which published figures exclude (about 31k nationally above the
+            published reported total; still below the headline, which adds estimates).
           - Reported figures only. Non-submitting trusts are missing (no estimates).
           - Summing both C_999 and specialty rows doubles the count.
 
