@@ -71,6 +71,21 @@ def test_table_answer_is_printed_as_rows(ask, tmp_path, capsys):
     assert len(record["answer"]) == 7                   # seven regions
 
 
+def test_named_values_print_as_label_value_pairs(ask, tmp_path, capsys):
+    code = ('rtt <- read_parquet("data/clean/rtt_incomplete_provider.parquet") |>\n'
+            '  filter(period == as.Date("2026-08-01"), is_all_specialties_total)\n'
+            "answer <- c(incomplete_pathways = sum(rtt$total_incomplete),\n"
+            "            pct_within_18_weeks = sum(rtt$within_18_weeks) / sum(rtt$known_clock_start))")
+    llm = ScriptedLLM([reply(code)])
+
+    ask.main(["Pathways and 18-week share, Aug 2026?"], llm=llm, asked_dir=tmp_path)
+
+    out = capsys.readouterr().out
+    assert "Answer:\n  incomplete_pathways: 7,189,213\n  pct_within_18_weeks: 0.6516" in out
+    record = json.loads((saved(tmp_path)[0] / "result.json").read_text())
+    assert record["answer"]["incomplete_pathways"] == 7189213
+
+
 def test_refusal_and_reason_are_printed(ask, tmp_path, capsys):
     reason = "The RTT data counts pathways, not unique patients."
     llm = ScriptedLLM([reply("", refusal_reason=reason)])

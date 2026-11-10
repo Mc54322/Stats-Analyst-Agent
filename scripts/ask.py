@@ -44,7 +44,10 @@ def is_refusal(answer) -> bool:
 
 
 def format_value(answer) -> str:
-    """A readable version of whatever R returned: a value, a list or a table."""
+    """A readable version of whatever R returned: a value, a list, a table, or
+    named values (printed as label: value lines)."""
+    if isinstance(answer, dict):
+        return "\n".join(f"{label}: {format_value(value)}" for label, value in answer.items())
     if isinstance(answer, list) and answer and all(isinstance(r, dict) for r in answer):
         return format_table(answer)
     if isinstance(answer, list):
