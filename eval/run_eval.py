@@ -167,6 +167,7 @@ def main(argv: list[str] | None = None, runs_dir: Path = DEFAULT_RUNS_DIR) -> in
     parser.add_argument("--model", default=DEV_MODEL, help=f"model ID (default: {DEV_MODEL})")
     parser.add_argument("--questions", nargs="+", metavar="ID", help="question ids to run, e.g. q01 q07")
     parser.add_argument("--mock", action="store_true", help="use a fake LLM (no API calls, no cost)")
+    parser.add_argument("--label", default=None, help="free-text label stored in run.json, e.g. a stage name")
     args = parser.parse_args(argv)
 
     if not (docker_available() and image_available()):
@@ -198,6 +199,7 @@ def main(argv: list[str] | None = None, runs_dir: Path = DEFAULT_RUNS_DIR) -> in
         "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": llm.model,
         "mock": args.mock,
+        "label": args.label,
         "questions": [q["id"] for q in questions],
         "skipped_no_ground_truth": pending,
         "system_prompt": prompts.system_prompt(),
