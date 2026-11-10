@@ -33,6 +33,7 @@ Rules:
   they are the most common reasons for wrong answers.
 - Assign the final result to a variable called `answer`, as a plain R value
   (not a table) of the requested type. Do not print whole tables.
+- Refuse only when the data genuinely can't answer the question: set refusal_reason to say why.
 - Reply with JSON only, matching the requested schema: your plan in plain
   English, the datasets you used ("rtt", "ae"), the complete R code, and the
   answer type you are returning.

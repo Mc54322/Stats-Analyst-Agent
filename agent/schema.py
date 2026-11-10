@@ -5,21 +5,40 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 AnswerType = Literal["number", "count", "ranking list", "yes/no"]
 Dataset = Literal["rtt", "ae"]
 
 
 class AgentReply(BaseModel):
-    """What the model returns for each attempt."""
+    """What the model returns for each attempt: either R code that computes the
+    answer, or a refusal saying why the data can't answer the question."""
 
     model_config = ConfigDict(extra="forbid")
 
     plan: str = Field(description="The steps, in plain English, that the code follows.")
     datasets: list[Dataset] = Field(description="Which tables the code reads.")
-    r_code: str = Field(description="Complete R code that assigns the final result to `answer`.")
+    r_code: str = Field(
+        description="Complete R code that assigns the final result to `answer`. Empty if refusing."
+    )
     answer_type: AnswerType = Field(description="The type of value assigned to `answer`.")
+    refusal_reason: str | None = Field(
+        description="null when answering. If the data genuinely can't answer the question, "
+        "explain why here (e.g. what it measures instead, or which months it covers)."
+    )
+
+    @model_validator(mode="after")
+    def _code_or_reason(self) -> "AgentReply":
+        if self.refusal_reason is not None and not self.refusal_reason.strip():
+            raise ValueError("refusal_reason must explain why, or be null when answering")
+        if self.refusal_reason is None and not self.r_code.strip():
+            raise ValueError("r_code is required unless refusal_reason explains why the data can't answer")
+        return self
+
+    @property
+    def refused(self) -> bool:
+        return self.refusal_reason is not None
 
 
 def reply_json_schema() -> dict:

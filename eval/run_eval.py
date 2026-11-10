@@ -10,10 +10,9 @@ Each run is saved to eval/runs/<timestamp>/:
     questions/<id>.json  question, every prompt and response, R code, output, grade, tokens, cost
 
 --mock replaces the model with a fake that writes code returning the expected
-answer. It tests the plumbing (prompting, sandbox, answer export, grading,
-run folder), not the agent's ability, and costs nothing. The agent has no way
-to refuse yet, so on refusal questions (q23-q25) the mock answers like the
-agent would and is graded FAIL: a full mock run scores 27/30.
+answer, or refuses where the expected answer is a refusal. It tests the
+plumbing (prompting, sandbox, answer export, refusals, grading, run folder),
+not the agent's ability, and costs nothing. A full mock run scores 30/30.
 
 Exit codes: 0 finished, 2 stopped by the spend cap, 3 setup problem.
 """
@@ -47,10 +46,9 @@ DEFAULT_RUNS_DIR = PROJECT_ROOT / "eval" / "runs"
 
 class AnswerKeyLLM:
     """Fake model for --mock: replies with valid JSON whose R code assigns the
-    expected answer. Exercises everything except the model itself.
-
-    For a refusal question there is no value to assign and the agent can't
-    refuse, so it returns a placeholder of the requested type (graded FAIL)."""
+    expected answer, or, for a refusal question, refuses with a reason that
+    mentions one of the question's keywords. Exercises everything except the
+    model itself."""
 
     model = "mock"
 
@@ -64,18 +62,21 @@ class AnswerKeyLLM:
         q = self.by_question[messages[0]["content"]]
         a = self.answers[q["id"]]
         answer_type = agent_answer_type(q)
-        value = PLACEHOLDER_FOR_TYPE[answer_type] if a["answer_type"] == "refusal" else _r_literal(a["answer"], answer_type)
         reply = {
             "plan": f"Mock reply for {q['id']}: return the expected answer.",
             "datasets": list(q["datasets"]),
-            "r_code": f"answer <- {value}\ncat('answer set\\n')",
+            "r_code": "",
             "answer_type": answer_type,
+            "refusal_reason": None,
         }
+        if a["answer_type"] == "refusal":
+            keywords = a["answer"]["keywords"]
+            keyword = keywords if isinstance(keywords, str) else keywords[0]
+            reply["refusal_reason"] = f"Mock refusal: the data can't answer this ({keyword})."
+        else:
+            reply["r_code"] = f"answer <- {_r_literal(a['answer'], answer_type)}\ncat('answer set\\n')"
         text = json.dumps(reply)
         return LLMTurn(text=text, content=[{"type": "text", "text": text}])
-
-
-PLACEHOLDER_FOR_TYPE = {"number": "0", "count": "0", "yes/no": "FALSE", "ranking list": 'c("NONE")'}
 
 
 def _r_literal(value, answer_type: str) -> str:

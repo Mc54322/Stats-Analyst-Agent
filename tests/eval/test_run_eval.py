@@ -33,7 +33,7 @@ class FakeAnthropic:
         prompt = kwargs["messages"][0]["content"]
         answer_type = re.search(r"Answer type: (.+?)\. Set", prompt).group(1)
         text = json.dumps({"plan": "p", "datasets": ["rtt"], "answer_type": answer_type,
-                           "r_code": f"answer <- {ANSWER_FOR_TYPE[answer_type]}"})
+                           "r_code": f"answer <- {ANSWER_FOR_TYPE[answer_type]}", "refusal_reason": None})
         return SimpleNamespace(
             model="claude-haiku-5-5", stop_reason="end_turn", stop_details=None,
             content=[SimpleNamespace(type="text", text=text)],
@@ -93,15 +93,15 @@ def test_full_mock_run_over_all_questions_writes_the_run_folder(run_eval, tmp_pa
     record = json.loads((run_dir / "questions" / "q15.json").read_text())
     assert record["grade"]["pass"] is True and record["code"] and record["messages"]
 
-    # Every question passes except the refusal questions: the agent can't refuse yet.
-    grades = {f.stem: json.loads(f.read_text())["grade"] for f in (run_dir / "questions").iterdir()}
-    failed = sorted(qid for qid, g in grades.items() if not g["pass"])
-    assert failed == ["q23", "q24", "q25"]
-    assert all("expected refusal" in grades[q]["detail"] for q in failed)
-    assert meta["summary"]["passed"] == 27
+    # Every question passes, including the refusal questions (q23-q25), which
+    # the mock answers with a refusal and no R code.
+    records = {f.stem: json.loads(f.read_text()) for f in (run_dir / "questions").iterdir()}
+    assert sorted(q for q, r in records.items() if not r["grade"]["pass"]) == []
+    assert meta["summary"]["passed"] == 30
+    refused = sorted(q for q, r in records.items() if isinstance(r["answer"], dict) and r["answer"].get("refused"))
+    assert refused == ["q23", "q24", "q25"]
 
     # The agent was asked for what the question asks for, never told to refuse.
-    for qid in failed:
-        record = json.loads((run_dir / "questions" / f"{qid}.json").read_text())
-        assert record["answer_type"] == "number"
-        assert "refus" not in record["messages"][0]["content"].lower()
+    for qid in refused:
+        assert records[qid]["answer_type"] == "number"
+        assert "refus" not in records[qid]["messages"][0]["content"].lower()
