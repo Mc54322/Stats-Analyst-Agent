@@ -7,7 +7,28 @@
 **Eval set:** v1, 20 questions (`eval/questions.yaml`), data as of 2026-10-21
 **Runs:** `eval/runs/20261110T152618Z`, `20261110T152750Z`, `20261110T152920Z` (local, gitignored)
 
-## Results
+## Update: new baseline after removing catalogue leaks
+
+Leaked answers were removed from `data/catalogue.yaml` in `e00f53e` (see caveat 2 below). The baseline agent was then rerun 3 times on `claude-haiku-5-5`, with no other changes. **This is the new baseline.**
+
+Runs: `20261110T153856Z`, `20261110T154019Z`, `20261110T154144Z`.
+
+| | Run 1 | Run 2 | Run 3 | Average | Before leak removal |
+|---|---|---|---|---|---|
+| Accuracy | 20/20 | 20/20 | 20/20 | **100%** | 100% |
+| Right first time | 20/20 | 20/20 | 19/20 | **19.7/20 (98%)** | 18.3/20 (92%) |
+| Retries used | 0 | 0 | 1 | 0.3 | 1.7 |
+| Total cost | $0.0094 | $0.0089 | $0.0081 | **$0.0088** | $0.0091 |
+| Cost per question | $0.00047 | $0.00045 | $0.00040 | **$0.00044** | $0.00046 |
+
+- **Accuracy didn't change.** The leaked values weren't being used before either: all answers were computed from the data both times.
+- **The one retry** was the same `%>%`-without-dplyr error as before (q03, run 3; recovered).
+- **The answer-type label mismatch (q10, q11) didn't recur.** That's 0 cases in 3 runs, against 3 cases in 3 runs before. With three runs a side, this could easily be chance, so it doesn't yet show the catalogue edit fixed anything. Fix 1 below still removes the cause.
+- **Cost moved by $0.0003 per run,** which is within run-to-run variation.
+
+The questions added in v1.1 (q21–q30) aren't in these runs: they have no ground truth yet.
+
+## Results (first live run, before leak removal)
 
 | | Run 1 | Run 2 | Run 3 | Average |
 |---|---|---|---|---|
