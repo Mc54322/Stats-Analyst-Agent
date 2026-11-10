@@ -5,4 +5,5 @@ Imports:
     tidyverse,
     arrow,
     janitor,
-    readxl
+    readxl,
+    boot
