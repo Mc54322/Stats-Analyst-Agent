@@ -16,6 +16,7 @@ not caught here: it stops whatever is running.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Protocol
 
@@ -28,6 +29,61 @@ from sandbox import run_r_script
 MAX_RETRIES = 1
 AGENT_MAX_TOKENS = 8000  # room for adaptive thinking plus the JSON reply
 STDERR_FEEDBACK_CHARS = 2000
+
+SCALAR_TEST_IN_FILTER_FEEDBACK = (
+    "Your code uses isTRUE() or isFALSE() inside filter(): {calls}. These return a single "
+    "TRUE or FALSE for the whole column, not one value per row, so the filter keeps all rows "
+    "or none and the answer is silently wrong. Use the column directly (filter(x)), !column "
+    "(filter(!x)) or column == FALSE (filter(x == FALSE)) instead."
+)
+
+
+def _filter_calls(code: str) -> list[str]:
+    """Every filter(...) call in the code, including dplyr::filter(...), as text.
+
+    Scans for matching parentheses, skipping strings and # comments, so nested
+    calls like filter(a, isFALSE(b)) are captured whole."""
+    calls, i = [], 0
+    for match in re.finditer(r"(?<![\w.])(?:dplyr::)?filter\s*\(", code):
+        start = match.start()
+        if start < i:      # inside a filter() already captured
+            continue
+        depth, j, quote = 0, match.end() - 1, None
+        while j < len(code):
+            ch = code[j]
+            if quote:
+                if ch == "\\":
+                    j += 1
+                elif ch == quote:
+                    quote = None
+            elif ch in "\"'`":
+                quote = ch
+            elif ch == "#":
+                newline = code.find("\n", j)
+                j = len(code) if newline == -1 else newline
+                continue
+            elif ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        calls.append(code[start:j + 1])
+        i = j + 1
+    return calls
+
+
+def _strip_strings_and_comments(code: str) -> str:
+    code = re.sub(r"#[^\n]*", "", code)
+    return re.sub(r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'", '""', code)
+
+
+def scalar_tests_in_filter(code: str) -> list[str]:
+    """filter() calls that use isTRUE()/isFALSE(), which test the whole column at once."""
+    return [call for call in _filter_calls(code)
+            if re.search(r"\bis(?:TRUE|FALSE)\s*\(", _strip_strings_and_comments(call))]
+
 
 # Put before the model's code so the core packages are always attached.
 PACKAGE_PRELUDE = """# ---- added by the agent runner: core packages ----
@@ -198,6 +254,12 @@ def _run_attempt(attempt: Attempt, text: str, answer_type: str, timeout_s: int, 
     if reply.refused:
         result.answer = {"refused": True, "reason": reply.refusal_reason.strip()}
         return None
+
+    # Pre-run check: isTRUE()/isFALSE() inside filter() runs without error but
+    # silently keeps all rows or none, so don't run it; send it back instead.
+    bad_filters = scalar_tests_in_filter(reply.r_code)
+    if bad_filters:
+        return SCALAR_TEST_IN_FILTER_FEEDBACK.format(calls="; ".join(bad_filters))
 
     # The declared answer_type is informational only: coerce_answer() below
     # checks the value R actually produced against the type the question needs.
